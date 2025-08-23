@@ -110,16 +110,16 @@ import (
 
 // Using GORM
 db, _ := gorm.Open(sqlite.Open("test.db"), &gorm.Config{})
-handler := databaseHandler.NewDatabaseHandler("gorm", db, log.Default())
+handler := databaseHandler.NewDatabaseHandler("gorm", db, 30*time.Second, log.Default())
 
 // Using XORM  
 import "xorm.io/xorm"
 engine, _ := xorm.NewEngine("sqlite3", "test.db")
 wrapper := &XormWrapper{engine: engine} // Implement DB interface
-handler := databaseHandler.NewDatabaseHandler("xorm", wrapper, log.Default())
+handler := databaseHandler.NewDatabaseHandler("xorm", wrapper, 30*time.Second, log.Default())
 
 // Any database that implements the DB interface
-handler := databaseHandler.NewDatabaseHandler("custom", customDB, log.Default())
+handler := databaseHandler.NewDatabaseHandler("custom", customDB, 30*time.Second, log.Default())
 ```
 
 ### Kafka Handler

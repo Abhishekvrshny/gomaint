@@ -249,7 +249,7 @@ This example demonstrates that the generic database handler works seamlessly wit
 | Read | `engine.Find(&users)` | `db.Find(&users)` |
 | Update | `engine.ID(id).Update()` | `db.Model(&user).Updates()` |
 | Delete | `engine.ID(id).Delete()` | `db.Delete(&user, id)` |
-| Handler | `database.NewDatabaseHandler("xorm", ...)` | `database.NewDatabaseHandler("gorm", ...)` |
+| Handler | `database.NewDatabaseHandler("xorm", ..., 30*time.Second, ...)` | `database.NewDatabaseHandler("gorm", ..., 30*time.Second, ...)` |
 
 Both use the same underlying generic database handler for maintenance mode management!
 

@@ -97,7 +97,7 @@ func setupApp() (*App, error) {
 
 	// Create database handler (works with GORM, XORM, or any ORM with sql.DB access)
 	mockDB := &MockDB{db: db}
-	dbHandler := database.NewDatabaseHandler("database", mockDB, log.Default())
+	dbHandler := database.NewDatabaseHandler("database", mockDB, 30*time.Second, log.Default())
 	
 	// Create maintenance manager using new simplified API
 	endpoints := []string{getEnv("ETCD_ENDPOINTS", "localhost:2379")}

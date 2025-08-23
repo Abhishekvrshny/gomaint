@@ -112,7 +112,12 @@ func (h *Handler) wrapHandler(original http.Handler) http.Handler {
 // writeMaintenanceResponse writes a maintenance mode response
 func (h *Handler) writeMaintenanceResponse(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Retry-After", "60") // Suggest retry after 60 seconds
+	// Set Retry-After based on drain timeout (converted to seconds)
+	retryAfter := int(h.drainTimeout.Seconds())
+	if retryAfter < 1 {
+		retryAfter = 1
+	}
+	w.Header().Set("Retry-After", fmt.Sprintf("%d", retryAfter))
 	w.WriteHeader(http.StatusServiceUnavailable)
 
 	response := `{

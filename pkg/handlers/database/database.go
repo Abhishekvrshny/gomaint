@@ -33,18 +33,21 @@ type Handler struct {
 	logger           *log.Logger
 	originalSettings *ConnectionSettings
 	settingsMux      sync.RWMutex
+	drainTimeout     time.Duration
+	activeConnections int32 // atomic counter for active connections
 }
 
 // NewDatabaseHandler creates a new database handler
 // Compatible with GORM, XORM, and other ORM libraries
-func NewDatabaseHandler(name string, db DB, logger *log.Logger) *Handler {
+func NewDatabaseHandler(name string, db DB, drainTimeout time.Duration, logger *log.Logger) *Handler {
 	if logger == nil {
 		logger = log.Default()
 	}
 	return &Handler{
-		BaseHandler: handlers.NewBaseHandler(name),
-		db:          db,
-		logger:      logger,
+		BaseHandler:  handlers.NewBaseHandler(name),
+		db:           db,
+		logger:       logger,
+		drainTimeout: drainTimeout,
 	}
 }
 
@@ -112,13 +115,35 @@ func (h *Handler) OnMaintenanceStart(ctx context.Context) error {
 
 	// Set minimum possible connection pool settings during maintenance
 	// These are the absolute minimum values to reduce database load
-	sqlDB.SetMaxIdleConns(0)                  // No idle connections
-	sqlDB.SetMaxOpenConns(1)                  // Only 1 connection maximum
-	sqlDB.SetConnMaxLifetime(1 * time.Second) // Short lifetime to force reconnection
-	sqlDB.SetConnMaxIdleTime(1 * time.Second) // Very short idle time
+	sqlDB.SetMaxIdleConns(0)                       // No idle connections
+	sqlDB.SetMaxOpenConns(1)                       // Only 1 connection maximum
+	sqlDB.SetConnMaxLifetime(h.drainTimeout / 10)  // Short lifetime relative to drain timeout
+	sqlDB.SetConnMaxIdleTime(h.drainTimeout / 10)  // Short idle time relative to drain timeout
 
-	h.logger.Printf("Database Handler (%s): Database prepared for maintenance mode with minimal connection settings", h.Name())
-	return nil
+	// Wait for active connections to drain or timeout
+	h.logger.Printf("Database Handler (%s): Waiting for active connections to drain (timeout: %v)", h.Name(), h.drainTimeout)
+	
+	drainStart := time.Now()
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(h.drainTimeout):
+			stats := sqlDB.Stats()
+			h.logger.Printf("Database Handler (%s): Drain timeout reached with %d open connections", h.Name(), stats.OpenConnections)
+			return fmt.Errorf("timeout waiting for connections to drain after %v, %d connections still open", h.drainTimeout, stats.OpenConnections)
+		case <-ticker.C:
+			stats := sqlDB.Stats()
+			if stats.OpenConnections <= 1 { // Allow 1 connection for basic operations
+				h.logger.Printf("Database Handler (%s): Database prepared for maintenance mode with minimal connections (drained in %v)", h.Name(), time.Since(drainStart))
+				return nil
+			}
+			h.logger.Printf("Database Handler (%s): Still waiting for %d connections to drain", h.Name(), stats.OpenConnections)
+		}
+	}
 }
 
 // OnMaintenanceEnd handles maintenance mode deactivation
@@ -164,8 +189,14 @@ func (h *Handler) IsHealthy() bool {
 		return false
 	}
 
-	// Ping database with timeout
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	// Ping database with timeout (use 1/10 of drain timeout, min 1 second, max 10 seconds)
+	healthTimeout := h.drainTimeout / 10
+	if healthTimeout < time.Second {
+		healthTimeout = time.Second
+	} else if healthTimeout > 10*time.Second {
+		healthTimeout = 10 * time.Second
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), healthTimeout)
 	defer cancel()
 
 	if err := sqlDB.PingContext(ctx); err != nil {
@@ -181,6 +212,7 @@ func (h *Handler) GetStats() map[string]interface{} {
 	stats := make(map[string]interface{})
 	stats["handler_name"] = h.Name()
 	stats["handler_state"] = h.State().String()
+	stats["drain_timeout"] = h.drainTimeout.String()
 
 	sqlDB, err := h.db.DB()
 	if err != nil {

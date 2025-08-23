@@ -109,14 +109,14 @@ Both `gorm-service` and `xorm-service` demonstrate the same generic database han
 
 ```go
 // GORM usage
-gormHandler := database.NewDatabaseHandler("gorm", gormDB, logger)
+gormHandler := database.NewDatabaseHandler("gorm", gormDB, 30*time.Second, logger)
 
 // XORM usage  
 xormWrapper := &XormWrapper{engine: xormEngine}
-xormHandler := database.NewDatabaseHandler("xorm", xormWrapper, logger)
+xormHandler := database.NewDatabaseHandler("xorm", xormWrapper, 30*time.Second, logger)
 
 // Any ORM that provides access to sql.DB
-genericHandler := database.NewDatabaseHandler("my-orm", ormDB, logger)
+genericHandler := database.NewDatabaseHandler("my-orm", ormDB, 30*time.Second, logger)
 ```
 
 ## Maintenance Mode Testing
