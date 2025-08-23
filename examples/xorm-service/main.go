@@ -115,9 +115,9 @@ func setupApp() (*App, error) {
 		// Don't fail the startup for this
 	}
 
-	// Create XORM database handler using the convenience wrapper
+	// Create XORM database handler using the generic database handler
 	xormWrapper := &XormWrapper{engine: engine}
-	xormHandler := database.NewXORMHandler(xormWrapper, log.Default())
+	xormHandler := database.NewDatabaseHandler("xorm", xormWrapper, log.Default())
 
 	// Create maintenance manager using new simplified API
 	endpoints := []string{getEnv("ETCD_ENDPOINTS", "localhost:2379")}
