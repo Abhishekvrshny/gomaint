@@ -7,7 +7,7 @@ A comprehensive Go library for gracefully handling service maintenance mode base
 - **Event-Driven Architecture**: Flexible event system supporting multiple state change sources
 - **etcd Integration**: Built-in ETCD event source for maintenance state changes
 - **Extensible Event Sources**: Easy to add new event sources (file system, webhooks, databases, etc.)
-- **Multiple Handler Support**: Built-in handlers for HTTP, Kafka, SQS, and generic database support (GORM, XORM, etc.)
+- **Multiple Handler Support**: Built-in handlers for HTTP, gRPC, Kafka, SQS, and generic database support (GORM, XORM, etc.)
 - **Event Filtering**: Advanced event filtering and routing capabilities
 - **Graceful Draining**: Configurable timeout for draining active connections/requests
 - **Thread-Safe**: Concurrent-safe operations with proper synchronization
@@ -105,6 +105,26 @@ handler := httpHandler.NewHTTPHandler(server, 30*time.Second)
 
 // Skip health check endpoints from maintenance mode
 handler.SkipPaths("/health", "/metrics")
+```
+
+### gRPC Handler
+
+Gracefully drains gRPC connections and returns maintenance errors during maintenance mode while preserving health checks.
+
+```go
+import (
+    grpcHandler "github.com/abhishekvarshney/gomaint/pkg/handlers/grpc"
+    "net"
+)
+
+lis, _ := net.Listen("tcp", ":50051")
+handler := grpcHandler.NewGRPCHandler(lis, 30*time.Second)
+
+// Register your gRPC services
+pb.RegisterUserServiceServer(handler.GetServer(), userService)
+
+// Start the server
+handler.Start(ctx)
 ```
 
 ### Database Handler

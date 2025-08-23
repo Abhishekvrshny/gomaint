@@ -1,0 +1,53 @@
+FROM golang:1.23-alpine AS builder
+
+# Install protobuf compiler and plugins
+RUN apk add --no-cache protobuf-dev git
+
+# Install Go protobuf plugins
+RUN go install google.golang.org/protobuf/cmd/protoc-gen-go@latest && \
+    go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
+
+# Set working directory
+WORKDIR /app
+
+# Copy go mod files
+COPY go.mod go.sum ./
+
+# Download dependencies
+RUN go mod download
+
+# Copy source code
+COPY . .
+
+# Generate protobuf code
+WORKDIR /app/examples/grpc-service/proto
+RUN go generate .
+
+# Build the client application
+WORKDIR /app
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o client ./examples/grpc-service/client/client.go
+
+# Final stage
+FROM alpine:latest
+
+# Install ca-certificates for SSL/TLS
+RUN apk --no-cache add ca-certificates
+
+# Create non-root user
+RUN addgroup -g 1000 appgroup && \
+    adduser -u 1000 -G appgroup -s /bin/sh -D appuser
+
+# Set working directory
+WORKDIR /app/
+
+# Copy binary from builder
+COPY --from=builder /app/client .
+
+# Change ownership to non-root user
+RUN chown -R appuser:appgroup /app
+
+# Switch to non-root user
+USER appuser
+
+# Run the client binary
+CMD ["./client"]

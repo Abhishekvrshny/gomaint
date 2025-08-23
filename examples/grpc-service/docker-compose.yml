@@ -1,0 +1,81 @@
+version: '3.8'
+
+services:
+  etcd:
+    image: gcr.io/etcd-development/etcd:v3.5.15
+    container_name: etcd
+    environment:
+      ETCD_NAME: etcd0
+      ETCD_DATA_DIR: /etcd-data
+      ETCD_LISTEN_CLIENT_URLS: http://0.0.0.0:2379
+      ETCD_ADVERTISE_CLIENT_URLS: http://etcd:2379
+      ETCD_LISTEN_PEER_URLS: http://0.0.0.0:2380
+      ETCD_INITIAL_ADVERTISE_PEER_URLS: http://etcd:2380
+      ETCD_INITIAL_CLUSTER: etcd0=http://etcd:2380
+      ETCD_INITIAL_CLUSTER_TOKEN: etcd-cluster
+      ETCD_INITIAL_CLUSTER_STATE: new
+      ETCD_ENABLE_V2: "true"
+      ETCD_AUTO_COMPACTION_RETENTION: "1"
+      ETCD_QUOTA_BACKEND_BYTES: 4294967296
+      ETCDCTL_API: 3
+    ports:
+      - "2379:2379"
+      - "2380:2380"
+    volumes:
+      - etcd_data:/etcd-data
+    healthcheck:
+      test: ["CMD", "etcdctl", "endpoint", "health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - grpc-network
+
+  grpc-service:
+    build:
+      context: ../../
+      dockerfile: examples/grpc-service/Dockerfile
+    container_name: grpc-service
+    environment:
+      GRPC_PORT: 50051
+      ETCD_ENDPOINTS: etcd:2379
+      ETCD_KEY: /maintenance/grpc-service
+      DRAIN_TIMEOUT: 30s
+    ports:
+      - "50051:50051"
+    depends_on:
+      etcd:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "/app/grpc-healthcheck"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    networks:
+      - grpc-network
+
+  grpc-client:
+    build:
+      context: ../../
+      dockerfile: examples/grpc-service/Dockerfile.client
+    container_name: grpc-client
+    environment:
+      GRPC_SERVER: grpc-service:50051
+    depends_on:
+      grpc-service:
+        condition: service_healthy
+    networks:
+      - grpc-network
+    profiles:
+      - client
+    command: ["./client"]
+
+volumes:
+  etcd_data:
+    driver: local
+
+networks:
+  grpc-network:
+    driver: bridge

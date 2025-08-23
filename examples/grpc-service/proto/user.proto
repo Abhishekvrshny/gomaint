@@ -1,0 +1,118 @@
+syntax = "proto3";
+
+package user;
+
+option go_package = "github.com/abhishekvarshney/gomaint/examples/grpc-service/proto";
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/empty.proto";
+
+// User represents a user in the system
+message User {
+  string id = 1;
+  string name = 2;
+  string email = 3;
+  google.protobuf.Timestamp created_at = 4;
+  google.protobuf.Timestamp updated_at = 5;
+  bool active = 6;
+}
+
+// CreateUserRequest represents a request to create a user
+message CreateUserRequest {
+  string name = 1;
+  string email = 2;
+}
+
+// CreateUserResponse represents a response after creating a user
+message CreateUserResponse {
+  User user = 1;
+  string message = 2;
+}
+
+// GetUserRequest represents a request to get a user by ID
+message GetUserRequest {
+  string id = 1;
+}
+
+// GetUserResponse represents a response containing a user
+message GetUserResponse {
+  User user = 1;
+}
+
+// UpdateUserRequest represents a request to update a user
+message UpdateUserRequest {
+  string id = 1;
+  string name = 2;
+  string email = 3;
+  bool active = 4;
+}
+
+// UpdateUserResponse represents a response after updating a user
+message UpdateUserResponse {
+  User user = 1;
+  string message = 2;
+}
+
+// DeleteUserRequest represents a request to delete a user
+message DeleteUserRequest {
+  string id = 1;
+}
+
+// DeleteUserResponse represents a response after deleting a user
+message DeleteUserResponse {
+  string message = 1;
+}
+
+// ListUsersRequest represents a request to list users
+message ListUsersRequest {
+  int32 page = 1;
+  int32 page_size = 2;
+  bool active_only = 3;
+}
+
+// ListUsersResponse represents a response containing a list of users
+message ListUsersResponse {
+  repeated User users = 1;
+  int32 total_count = 2;
+  int32 page = 3;
+  int32 page_size = 4;
+}
+
+// StreamUsersRequest represents a request to stream users
+message StreamUsersRequest {
+  bool active_only = 1;
+  int32 batch_size = 2;
+}
+
+// StreamUsersResponse represents a response in the user stream
+message StreamUsersResponse {
+  repeated User users = 1;
+  bool is_last_batch = 2;
+}
+
+// UserService defines the gRPC service for user management
+service UserService {
+  // CreateUser creates a new user
+  rpc CreateUser(CreateUserRequest) returns (CreateUserResponse);
+  
+  // GetUser retrieves a user by ID
+  rpc GetUser(GetUserRequest) returns (GetUserResponse);
+  
+  // UpdateUser updates an existing user
+  rpc UpdateUser(UpdateUserRequest) returns (UpdateUserResponse);
+  
+  // DeleteUser deletes a user by ID
+  rpc DeleteUser(DeleteUserRequest) returns (DeleteUserResponse);
+  
+  // ListUsers lists users with pagination
+  rpc ListUsers(ListUsersRequest) returns (ListUsersResponse);
+  
+  // StreamUsers streams users in batches (server streaming)
+  rpc StreamUsers(StreamUsersRequest) returns (stream StreamUsersResponse);
+  
+  // SubscribeToUserEvents subscribes to user events (client streaming)
+  rpc SubscribeToUserEvents(stream CreateUserRequest) returns (google.protobuf.Empty);
+  
+  // ChatWithUsers demonstrates bidirectional streaming
+  rpc ChatWithUsers(stream CreateUserRequest) returns (stream CreateUserResponse);
+}
