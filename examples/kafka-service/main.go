@@ -17,8 +17,7 @@ import (
 	
 	"github.com/abhishekvarshney/gomaint"
 	kafkaHandler "github.com/abhishekvarshney/gomaint/pkg/handlers/kafka"
-	"github.com/abhishekvarshney/gomaint/pkg/manager"
-)
+	)
 
 // MessageProcessor implements the Kafka message processing logic
 type MessageProcessor struct {
@@ -57,7 +56,7 @@ type App struct {
 	kafkaClient   sarama.Client
 	kafkaHandler  *kafkaHandler.Handler
 	kafkaProducer sarama.SyncProducer
-	manager       *manager.Manager
+	manager       *gomaint.Manager
 	server        *http.Server
 	topics        []string
 }
@@ -137,18 +136,16 @@ func setupApp() (*App, error) {
 		return nil, fmt.Errorf("failed to create Kafka producer: %w", err)
 	}
 
-	// Create maintenance manager
-	cfg := gomaint.NewConfig(
+	// Create maintenance manager using new simplified API
+	mgr, err := gomaint.StartWithEtcd(
+		context.Background(),
 		strings.Split(etcdEndpoints, ","),
 		"/maintenance/kafka-service",
 		30*time.Second,
+		handler, // Register handler during creation
 	)
-
-	mgr := manager.NewManager(cfg)
-
-	// Register Kafka handler
-	if err := mgr.RegisterHandler(handler); err != nil {
-		return nil, fmt.Errorf("failed to register Kafka handler: %w", err)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create maintenance manager: %w", err)
 	}
 
 	// Setup HTTP server
@@ -260,10 +257,7 @@ func (app *App) setupRoutes(mux *http.ServeMux) {
 }
 
 func (app *App) run(ctx context.Context) error {
-	// Start maintenance manager
-	if err := app.manager.Start(ctx); err != nil {
-		return fmt.Errorf("failed to start maintenance manager: %w", err)
-	}
+	// Maintenance manager is already started by StartWithEtcd
 
 	// Start Kafka message processing
 	if err := app.kafkaHandler.Start(ctx); err != nil {
@@ -334,7 +328,7 @@ func (app *App) healthHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Check handler health
-	health := app.manager.HealthCheck()
+	health := app.manager.GetHandlerHealth()
 	allHealthy := true
 	for _, healthy := range health {
 		if !healthy {
@@ -453,7 +447,7 @@ func (app *App) statsHandler(w http.ResponseWriter, r *http.Request) {
 	stats := map[string]interface{}{
 		"maintenance": app.manager.IsInMaintenance(),
 		"timestamp":   time.Now().UTC(),
-		"handlers":    app.manager.HealthCheck(),
+		"handlers":    app.manager.GetHandlerHealth(),
 		"kafka":       kafkaStats,
 	}
 

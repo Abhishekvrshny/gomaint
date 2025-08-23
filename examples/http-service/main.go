@@ -2,8 +2,6 @@ package main
 
 import (
 	"context"
-	"fmt"
-	"github.com/abhishekvarshney/gomaint"
 	"log"
 	"net/http"
 	"os"
@@ -12,14 +10,39 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/abhishekvarshney/gomaint"
 	httpHandler "github.com/abhishekvarshney/gomaint/pkg/handlers/http"
 )
 
+const (
+	defaultPort         = "8080"
+	defaultEtcdKey      = "/maintenance/http-service"
+	defaultEtcdEndpoint = "localhost:2379"
+	defaultDrainTimeout = 30 * time.Second
+)
+
 func main() {
-	// Create HTTP server
+	// Get configuration from environment variables
+	port := getEnv("HTTP_PORT", defaultPort)
+	etcdEndpoints := getEnv("ETCD_ENDPOINTS", defaultEtcdEndpoint)
+	etcdKey := getEnv("ETCD_KEY", defaultEtcdKey)
+	
+	// Parse drain timeout
+	drainTimeoutStr := getEnv("DRAIN_TIMEOUT", "30s")
+	drainTimeout, err := time.ParseDuration(drainTimeoutStr)
+	if err != nil {
+		log.Fatalf("Invalid DRAIN_TIMEOUT: %v", err)
+	}
+
+	log.Printf("HTTP server starting on port %s", port)
+	log.Printf("Drain timeout: %v", drainTimeout)
+	log.Printf("etcd endpoints: %s", etcdEndpoints)
+	log.Printf("etcd key: %s", etcdKey)
+
+	// Create HTTP server and routes
 	mux := http.NewServeMux()
 
-	// Add some routes
+	// Add routes
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("Hello, World!"))
@@ -32,42 +55,30 @@ func main() {
 	})
 
 	mux.HandleFunc("/api/data", func(w http.ResponseWriter, r *http.Request) {
-		// Simulate some processing time
-		time.Sleep(2 * time.Second)
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"message": "Data processed successfully", "timestamp": "` + time.Now().Format(time.RFC3339) + `"}`))
+		w.Write([]byte(`{"message": "API is working", "timestamp": "` + time.Now().Format(time.RFC3339) + `"}`))
 	})
 
 	server := &http.Server{
-		Addr:    ":8080",
+		Addr:    ":" + port,
 		Handler: mux,
 	}
 
-	// Get etcd endpoints from environment variable or use default
-	etcdEndpoints := []string{"localhost:2379"}
-	if envEndpoints := os.Getenv("ETCD_ENDPOINTS"); envEndpoints != "" {
-		etcdEndpoints = strings.Split(envEndpoints, ",")
-	}
+	// Create HTTP handler for maintenance mode
+	handler := httpHandler.NewHTTPHandler(server, drainTimeout)
+	
+	// Skip health check endpoints from maintenance mode
+	handler.SkipPaths("/health")
 
-	// Create maintenance configuration
-	config := gomaint.NewConfig(
-		etcdEndpoints,               // etcd endpoints
-		"/maintenance/http-service", // etcd key to watch
-		30*time.Second,              // drain timeout
-	)
+	// Parse etcd endpoints
+	endpoints := strings.Split(etcdEndpoints, ",")
 
-	// Create HTTP handler for maintenance
-	httpMaintenanceHandler := httpHandler.NewHTTPHandler(server, 30*time.Second)
-
-	// skip maintenance for health check URL
-	httpMaintenanceHandler.SkipPaths("/health")
-
-	// Create and start maintenance manager
+	// Start server using the new simplified event source architecture
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	mgr, err := gomaint.Start(ctx, config, httpMaintenanceHandler)
+	mgr, err := gomaint.StartWithEtcd(ctx, endpoints, etcdKey, drainTimeout, handler)
 	if err != nil {
 		log.Fatalf("Failed to start maintenance manager: %v", err)
 	}
@@ -75,7 +86,7 @@ func main() {
 
 	// Start HTTP server in a goroutine
 	go func() {
-		log.Printf("Starting HTTP server on %s", server.Addr)
+		log.Printf("Starting HTTP server on :%s", port)
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Fatalf("HTTP server failed: %v", err)
 		}
@@ -85,51 +96,27 @@ func main() {
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 
-	// Print usage information
-	fmt.Println("HTTP Service with Maintenance Mode")
-	fmt.Println("==================================")
-	fmt.Println("Server running on http://localhost:8080")
-	fmt.Println("Health check: http://localhost:8080/health")
-	fmt.Println("API endpoint: http://localhost:8080/api/data")
-	fmt.Println("")
-	fmt.Println("To enable maintenance mode:")
-	fmt.Println("  etcdctl put /maintenance/http-service true")
-	fmt.Println("")
-	fmt.Println("To disable maintenance mode:")
-	fmt.Println("  etcdctl put /maintenance/http-service false")
-	fmt.Println("")
-	fmt.Println("Press Ctrl+C to stop...")
-
-	// Monitor maintenance state changes
-	go func() {
-		ticker := time.NewTicker(5 * time.Second)
-		defer ticker.Stop()
-
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-ticker.C:
-				inMaintenance := mgr.IsInMaintenance()
-				health := mgr.HealthCheck()
-
-				log.Printf("Status - Maintenance: %v, Health: %v",
-					inMaintenance,
-					health["http"])
-			}
-		}
-	}()
+	log.Println("HTTP server started successfully")
+	log.Println("Monitoring etcd for maintenance mode changes...")
+	log.Println("Press Ctrl+C to stop")
 
 	<-sigChan
-	log.Println("Shutting down...")
+	log.Println("Shutting down HTTP server...")
 
 	// Graceful shutdown
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer shutdownCancel()
 
-	if err := httpMaintenanceHandler.Shutdown(shutdownCtx); err != nil {
+	if err := server.Shutdown(shutdownCtx); err != nil {
 		log.Printf("HTTP server shutdown error: %v", err)
+	} else {
+		log.Println("HTTP server stopped gracefully")
 	}
+}
 
-	log.Println("Server stopped")
+func getEnv(key, defaultValue string) string {
+	if value := os.Getenv(key); value != "" {
+		return value
+	}
+	return defaultValue
 }

@@ -15,8 +15,7 @@ import (
 
 	"github.com/abhishekvarshney/gomaint"
 	"github.com/abhishekvarshney/gomaint/pkg/handlers/database"
-	"github.com/abhishekvarshney/gomaint/pkg/manager"
-	_ "github.com/lib/pq"
+		_ "github.com/lib/pq"
 	"xorm.io/xorm"
 )
 
@@ -47,7 +46,7 @@ func (x *XormWrapper) DB() (*sql.DB, error) {
 // App holds the application dependencies
 type App struct {
 	engine  *xorm.Engine
-	manager *manager.Manager
+	manager *gomaint.Manager
 	server  *http.Server
 }
 
@@ -116,20 +115,21 @@ func setupApp() (*App, error) {
 		// Don't fail the startup for this
 	}
 
-	// Create maintenance manager
-	cfg := gomaint.NewConfig(
-		[]string{getEnv("ETCD_ENDPOINTS", "localhost:2379")},
-		"/maintenance/xorm-service",
-		30*time.Second,
-	)
-
-	mgr := manager.NewManager(cfg)
-
-	// Register XORM database handler using the convenience wrapper
+	// Create XORM database handler using the convenience wrapper
 	xormWrapper := &XormWrapper{engine: engine}
 	xormHandler := database.NewXORMHandler(xormWrapper, log.Default())
-	if err := mgr.RegisterHandler(xormHandler); err != nil {
-		return nil, fmt.Errorf("failed to register XORM handler: %w", err)
+
+	// Create maintenance manager using new simplified API
+	endpoints := []string{getEnv("ETCD_ENDPOINTS", "localhost:2379")}
+	mgr, err := gomaint.StartWithEtcd(
+		context.Background(),
+		endpoints,
+		"/maintenance/xorm-service",
+		30*time.Second,
+		xormHandler, // Register handler during creation
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create maintenance manager: %w", err)
 	}
 
 	// Setup HTTP server
@@ -162,10 +162,7 @@ func (app *App) setupRoutes(mux *http.ServeMux) {
 }
 
 func (app *App) run(ctx context.Context) error {
-	// Start maintenance manager
-	if err := app.manager.Start(ctx); err != nil {
-		return fmt.Errorf("failed to start maintenance manager: %w", err)
-	}
+	// Maintenance manager is already started by StartWithEtcd
 
 	// Start HTTP server
 	go func() {
@@ -220,7 +217,7 @@ func (app *App) healthHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Check database health
-	health := app.manager.HealthCheck()
+	health := app.manager.GetHandlerHealth()
 	allHealthy := true
 	for _, healthy := range health {
 		if !healthy {
@@ -418,7 +415,7 @@ func (app *App) statsHandler(w http.ResponseWriter, r *http.Request) {
 	stats := map[string]interface{}{
 		"maintenance": app.manager.IsInMaintenance(),
 		"timestamp":   time.Now().UTC(),
-		"handlers":    app.manager.HealthCheck(),
+		"handlers":    app.manager.GetHandlerHealth(),
 		"xorm":        xormStats,
 	}
 

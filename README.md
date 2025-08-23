@@ -4,15 +4,14 @@ A comprehensive Go library for gracefully handling service maintenance mode base
 
 ## Features
 
-- **Event-Driven Architecture**: Flexible event system supporting multiple state change sources
-- **etcd Integration**: Built-in ETCD event source for maintenance state changes
-- **Extensible Event Sources**: Easy to add new event sources (file system, webhooks, databases, etc.)
+- **Simplified Event Source Architecture**: Clean design pattern with single event source per manager
+- **etcd Integration**: Built-in etcd event source for maintenance state changes
 - **Multiple Handler Support**: Built-in handlers for HTTP, gRPC, Kafka, SQS, and generic database support (GORM, XORM, etc.)
-- **Event Filtering**: Advanced event filtering and routing capabilities
 - **Graceful Draining**: Configurable timeout for draining active connections/requests
 - **Thread-Safe**: Concurrent-safe operations with proper synchronization
 - **Pluggable Architecture**: Easy to extend with custom handlers and event sources
 - **Health Monitoring**: Built-in health checks and statistics for handlers and event sources
+- **Backward Compatibility**: Supports both new simplified and legacy architectures
 
 ## Installation
 
@@ -21,6 +20,8 @@ go get github.com/abhishekvarshney/gomaint
 ```
 
 ## Quick Start
+
+### New Simplified Architecture (Recommended)
 
 ```go
 package main
@@ -41,19 +42,18 @@ func main() {
         Handler: http.DefaultServeMux,
     }
 
-    // Create maintenance configuration
-    config := gomaint.NewConfig(
-        []string{"localhost:2379"},  // etcd endpoints
-        "/maintenance/my-service",   // etcd key to watch
-        30*time.Second,              // drain timeout
-    )
-
     // Create HTTP handler for maintenance
     httpMaintHandler := httpHandler.NewHTTPHandler(server, 30*time.Second)
 
-    // Start maintenance manager
+    // Start maintenance manager with etcd event source
     ctx := context.Background()
-    mgr, err := gomaint.Start(ctx, config, httpMaintHandler)
+    mgr, err := gomaint.StartWithEtcd(
+        ctx,
+        []string{"localhost:2379"},  // etcd endpoints
+        "/maintenance/my-service",   // etcd key to watch
+        30*time.Second,              // drain timeout
+        httpMaintHandler,            // handlers
+    )
     if err != nil {
         panic(err)
     }
@@ -64,9 +64,72 @@ func main() {
 }
 ```
 
+### Legacy Architecture (Backward Compatible)
+
+The legacy API is still supported for backward compatibility:
+
+```go
+// Create maintenance configuration (legacy approach)
+config := gomaint.NewConfig(
+    []string{"localhost:2379"},  // etcd endpoints
+    "/maintenance/my-service",   // etcd key to watch
+    30*time.Second,              // drain timeout
+)
+
+// Start maintenance manager (uses new architecture under the hood)
+ctx := context.Background()
+mgr, err := gomaint.Start(ctx, config, httpMaintHandler)
+```
+
+**Note**: The legacy API now uses the simplified event source architecture internally, providing the same clean design while maintaining backward compatibility.
+
+## Architecture
+
+### New Event Source Design Pattern
+
+GoMaint now uses a simplified architecture where each manager works with exactly one event source. This provides:
+
+- **Clear Responsibility**: One event source = one way to receive maintenance events
+- **Simpler API**: Direct configuration without complex event routing
+- **Better Performance**: No event filtering or routing overhead
+- **Easier Testing**: Clean interfaces for mocking and testing
+
+```go
+// Create etcd event source
+etcdConfig := gomaint.NewEtcdConfig("etcd", []string{"localhost:2379"}, "/maintenance/my-service")
+eventSource, err := gomaint.NewEtcdEventSource(etcdConfig)
+
+// Create manager with single event source
+mgr := gomaint.NewMaintenanceManager(eventSource, 30*time.Second)
+```
+
+### Event Source Types
+
+Currently supported event source:
+- **etcd**: Watches etcd keys for maintenance state changes
+
+Future event sources (extensible):
+- **File**: Watch filesystem files for changes
+- **HTTP**: Poll HTTP endpoints for maintenance status
+- **Database**: Watch database tables for maintenance flags
+
 ## Configuration
 
-### Basic Configuration
+### New Architecture Configuration
+
+```go
+// Configure etcd event source
+etcdConfig := gomaint.NewEtcdConfig("my-etcd", []string{"localhost:2379"}, "/maintenance/my-service")
+etcdConfig.Timeout = 10 * time.Second
+etcdConfig.Username = "myuser"
+etcdConfig.Password = "mypass"
+
+// Create event source and manager
+eventSource, _ := gomaint.NewEtcdEventSource(etcdConfig)
+mgr := gomaint.NewMaintenanceManager(eventSource, 30*time.Second)
+```
+
+### Legacy Configuration (Still Supported)
 
 ```go
 config := &gomaint.Config{
