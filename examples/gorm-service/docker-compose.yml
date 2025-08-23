@@ -2,7 +2,7 @@ services:
   # PostgreSQL Database
   postgres:
     image: postgres:15-alpine
-    container_name: gorm-postgres
+    container_name: database-postgres
     environment:
       POSTGRES_DB: testdb
       POSTGRES_USER: postgres
@@ -51,12 +51,12 @@ services:
       timeout: 20s
       retries: 3
 
-  # GORM Service
-  gorm-service:
+  # Database Service
+  database-service:
     build:
       context: ../../
       dockerfile: examples/gorm-service/Dockerfile
-    container_name: gorm-service
+    container_name: database-service
     environment:
       DATABASE_URL: "host=postgres user=postgres password=postgres dbname=testdb port=5432 sslmode=disable"
       ETCD_ENDPOINTS: "etcd:2379"

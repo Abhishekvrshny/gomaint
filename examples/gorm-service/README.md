@@ -1,6 +1,6 @@
-# GORM Service with Maintenance Mode
+# Database Service with Maintenance Mode
 
-This example demonstrates how to use the GoMaint library with a GORM-style database handler for managing maintenance mode in a web service.
+This example demonstrates how to use the GoMaint library with the generic database handler for managing maintenance mode in a web service. The handler works with any ORM library that provides access to the underlying `*sql.DB` (GORM, XORM, etc.).
 
 ## Features
 
@@ -14,15 +14,15 @@ This example demonstrates how to use the GoMaint library with a GORM-style datab
 
 ```
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   GORM Service  │    │   PostgreSQL    │    │      etcd       │
+│Database Service │    │   PostgreSQL    │    │      etcd       │
 │                 │    │                 │    │                 │
 │ ┌─────────────┐ │    │ ┌─────────────┐ │    │ ┌─────────────┐ │
 │ │   HTTP API  │ │    │ │    Users    │ │    │ │ Maintenance │ │
 │ │             │ │    │ │    Table    │ │    │ │    State    │ │
 │ └─────────────┘ │    │ └─────────────┘ │    │ └─────────────┘ │
 │ ┌─────────────┐ │    │                 │    │                 │
-│ │ GORM Handler│ │◄──►│                 │    │                 │
-│ │             │ │    │                 │    │                 │
+│ │DB Handler   │ │◄──►│                 │    │                 │
+│ │(Generic)    │ │    │                 │    │                 │
 │ └─────────────┘ │    └─────────────────┘    └─────────────────┘
 │ ┌─────────────┐ │                                     ▲
 │ │  Manager    │ │◄────────────────────────────────────┘
@@ -61,12 +61,12 @@ This example demonstrates how to use the GoMaint library with a GORM-style datab
 
 4. **Enable maintenance mode**:
    ```bash
-   docker-compose exec etcdctl etcdctl put /maintenance/gorm-service true
+   docker-compose exec etcdctl etcdctl put /maintenance/database-service true
    ```
 
 5. **Disable maintenance mode**:
    ```bash
-   docker-compose exec etcdctl etcdctl put /maintenance/gorm-service false
+   docker-compose exec etcdctl etcdctl put /maintenance/database-service false
    ```
 
 ### Manual Setup
@@ -154,9 +154,9 @@ CREATE TABLE users (
 );
 ```
 
-## GORM Handler Features
+## Database Handler Features
 
-The GORM handler provides:
+The generic database handler provides:
 
 - **Connection Pool Management**: Automatically adjusts connection pool settings during maintenance
 - **Health Monitoring**: Continuous database health checks
@@ -180,10 +180,10 @@ The GORM handler provides:
 3. **Enable maintenance mode**:
    ```bash
    # Using docker-compose
-   docker-compose exec etcdctl etcdctl put /maintenance/gorm-service true
+   docker-compose exec etcdctl etcdctl put /maintenance/database-service true
    
    # Or using local etcdctl
-   etcdctl put /maintenance/gorm-service true
+   etcdctl put /maintenance/database-service true
    ```
 
 4. **Test maintenance behavior**:
@@ -202,7 +202,7 @@ The GORM handler provides:
 
 6. **Disable maintenance mode**:
    ```bash
-   docker-compose exec etcdctl etcdctl put /maintenance/gorm-service false
+   docker-compose exec etcdctl etcdctl put /maintenance/database-service false
    ```
 
 ## Cleanup

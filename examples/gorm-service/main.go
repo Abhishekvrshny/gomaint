@@ -13,12 +13,12 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/abhishekvarshney/gomaint/pkg/handlers/gorm"
+	"github.com/abhishekvarshney/gomaint/pkg/handlers/database"
 	"github.com/abhishekvarshney/gomaint/pkg/manager"
 	_ "github.com/lib/pq"
 )
 
-// MockDB implements the gorm.DB interface for demonstration
+// MockDB implements the database.DB interface for demonstration
 type MockDB struct {
 	db *sql.DB
 }
@@ -44,8 +44,8 @@ type App struct {
 }
 
 func main() {
-	fmt.Println("GORM Service with Maintenance Mode")
-	fmt.Println("==================================")
+	fmt.Println("Database Service with Maintenance Mode")
+	fmt.Println("=======================================")
 
 	app, err := setupApp()
 	if err != nil {
@@ -99,17 +99,17 @@ func setupApp() (*App, error) {
 	// Create maintenance manager
 	cfg := gomaint.NewConfig(
 		[]string{getEnv("ETCD_ENDPOINTS", "localhost:2379")},
-		"/maintenance/gorm-service",
+		"/maintenance/database-service",
 		30*time.Second,
 	)
 
 	mgr := manager.NewManager(cfg)
 
-	// Register GORM handler with mock DB
+	// Register database handler (works with GORM, XORM, or any ORM with sql.DB access)
 	mockDB := &MockDB{db: db}
-	gormHandler := gorm.NewGORMHandler(mockDB, log.Default())
-	if err := mgr.RegisterHandler(gormHandler); err != nil {
-		return nil, fmt.Errorf("failed to register GORM handler: %w", err)
+	dbHandler := database.NewDatabaseHandler("database", mockDB, log.Default())
+	if err := mgr.RegisterHandler(dbHandler); err != nil {
+		return nil, fmt.Errorf("failed to register database handler: %w", err)
 	}
 
 	// Setup HTTP server
@@ -176,10 +176,10 @@ func (app *App) run(ctx context.Context) error {
 	fmt.Println("  Stats: http://localhost:8080/stats")
 	fmt.Println()
 	fmt.Println("To enable maintenance mode:")
-	fmt.Println("  etcdctl put /maintenance/gorm-service true")
+	fmt.Println("  etcdctl put /maintenance/database-service true")
 	fmt.Println()
 	fmt.Println("To disable maintenance mode:")
-	fmt.Println("  etcdctl put /maintenance/gorm-service false")
+	fmt.Println("  etcdctl put /maintenance/database-service false")
 	fmt.Println()
 	fmt.Println("Press Ctrl+C to stop...")
 
@@ -417,11 +417,11 @@ func (app *App) deleteUser(w http.ResponseWriter, r *http.Request) {
 }
 
 func (app *App) statsHandler(w http.ResponseWriter, r *http.Request) {
-	// Get GORM handler stats
-	var gormStats map[string]interface{}
-	if handler, exists := app.manager.GetHandler("gorm"); exists {
-		if gormHandler, ok := handler.(*gorm.Handler); ok {
-			gormStats = gormHandler.GetStats()
+	// Get database handler stats
+	var dbStats map[string]interface{}
+	if handler, exists := app.manager.GetHandler("database"); exists {
+		if dbHandler, ok := handler.(*database.Handler); ok {
+			dbStats = dbHandler.GetStats()
 		}
 	}
 
@@ -429,7 +429,7 @@ func (app *App) statsHandler(w http.ResponseWriter, r *http.Request) {
 		"maintenance": app.manager.IsInMaintenance(),
 		"timestamp":   time.Now().UTC(),
 		"handlers":    app.manager.HealthCheck(),
-		"gorm":        gormStats,
+		"database":    dbStats,
 	}
 
 	w.Header().Set("Content-Type", "application/json")
