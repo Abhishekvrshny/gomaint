@@ -1,0 +1,83 @@
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: xorm-postgres
+    environment:
+      POSTGRES_DB: xormdb
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5433:5432"
+    volumes:
+      - xorm_postgres_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - xorm-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # etcd for maintenance mode coordination
+  etcd:
+    image: quay.io/coreos/etcd:v3.5.9
+    container_name: xorm-etcd
+    environment:
+      - ETCD_NAME=etcd0
+      - ETCD_DATA_DIR=/etcd-data
+      - ETCD_LISTEN_CLIENT_URLS=http://0.0.0.0:2379
+      - ETCD_ADVERTISE_CLIENT_URLS=http://etcd:2379
+      - ETCD_LISTEN_PEER_URLS=http://0.0.0.0:2380
+      - ETCD_INITIAL_ADVERTISE_PEER_URLS=http://etcd:2380
+      - ETCD_INITIAL_CLUSTER=etcd0=http://etcd:2380
+      - ETCD_INITIAL_CLUSTER_TOKEN=etcd-cluster-1
+      - ETCD_INITIAL_CLUSTER_STATE=new
+      - ETCD_AUTO_COMPACTION_RETENTION=1
+      - ETCD_QUOTA_BACKEND_BYTES=4294967296
+      - ETCD_HEARTBEAT_INTERVAL=250
+      - ETCD_ELECTION_TIMEOUT=1250
+    ports:
+      - "2389:2379"
+      - "2390:2380"
+    volumes:
+      - xorm_etcd_data:/etcd-data
+    networks:
+      - xorm-network
+    healthcheck:
+      test: [ "CMD", "etcdctl", "endpoint", "health" ]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+
+  # XORM Service
+  xorm-service:
+    build:
+      context: ../../
+      dockerfile: examples/xorm-service/Dockerfile
+    container_name: xorm-service
+    environment:
+      DB_HOST: "postgres"
+      DB_NAME: "xormdb"
+      ETCD_ENDPOINTS: "etcd:2379"
+    ports:
+      - "8081:8080"
+    networks:
+      - xorm-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      etcd:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  xorm_etcd_data:
+    driver: local
+  xorm_postgres_data:
+    driver: local
+
+networks:
+  xorm-network:
+    driver: bridge
