@@ -14,43 +14,23 @@ import (
 // Manager is the maintenance manager
 type Manager = maintenance.Manager
 
-// EventSource interface for maintenance event sources  
-type EventSource = eventsource.EventSource
-
 // Handler interface for maintenance handlers
 type Handler = handlers.Handler
 
-// EtcdConfig holds etcd-specific configuration
-type EtcdConfig = eventsource.EtcdConfig
-
-// NewManager creates a new maintenance manager with an event source
-func NewManager(eventSource EventSource, drainTimeout time.Duration) *Manager {
-	return maintenance.NewManager(eventSource, drainTimeout)
-}
-
-// NewEtcdEventSource creates a new etcd event source
-func NewEtcdEventSource(config *EtcdConfig) (EventSource, error) {
-	return eventsource.NewEtcdEventSource(config)
-}
-
-// NewEtcdConfig creates a new etcd configuration
-func NewEtcdConfig(name string, endpoints []string, keyPath string) *EtcdConfig {
-	return eventsource.NewEtcdConfig(name, endpoints, keyPath)
-}
-
-// StartWithEtcd is a convenience function to create and start a maintenance manager with etcd
+// StartWithEtcd creates and starts a maintenance manager with etcd event source
+// This is the recommended and primary way to create a maintenance manager.
 func StartWithEtcd(ctx context.Context, endpoints []string, keyPath string, drainTimeout time.Duration, handlers ...Handler) (*Manager, error) {
 	// Create etcd configuration
-	etcdConfig := NewEtcdConfig("etcd", endpoints, keyPath)
+	etcdConfig := eventsource.NewEtcdConfig("etcd", endpoints, keyPath)
 	
 	// Create etcd event source
-	eventSource, err := NewEtcdEventSource(etcdConfig)
+	eventSource, err := eventsource.NewEtcdEventSource(etcdConfig)
 	if err != nil {
 		return nil, err
 	}
 	
 	// Create maintenance manager
-	mgr := NewManager(eventSource, drainTimeout)
+	mgr := maintenance.NewManager(eventSource, drainTimeout)
 	
 	// Register all handlers
 	for _, handler := range handlers {

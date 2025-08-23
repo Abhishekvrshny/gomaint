@@ -1,17 +1,16 @@
 # GoMaint - Go Maintenance Library
 
-A comprehensive Go library for gracefully handling service maintenance mode based on etcd key changes. GoMaint allows any Go service to seamlessly transition into and out of maintenance mode while properly draining connections and managing resources.
+A simple and efficient Go library for gracefully handling service maintenance mode based on etcd key changes. GoMaint allows any Go service to seamlessly transition into and out of maintenance mode while properly draining connections and managing resources.
 
 ## Features
 
-- **Simplified Event Source Architecture**: Clean design pattern with single event source per manager
+- **Simple API**: One function to get started - `StartWithEtcd()`
 - **etcd Integration**: Built-in etcd event source for maintenance state changes
-- **Multiple Handler Support**: Built-in handlers for HTTP, gRPC, Kafka, SQS, and generic database support (GORM, XORM, etc.)
+- **Multiple Handler Support**: Built-in handlers for HTTP, gRPC, Kafka, SQS, and databases (GORM, XORM, etc.)
 - **Graceful Draining**: Configurable timeout for draining active connections/requests
 - **Thread-Safe**: Concurrent-safe operations with proper synchronization
-- **Pluggable Architecture**: Easy to extend with custom handlers and event sources
-- **Health Monitoring**: Built-in health checks and statistics for handlers and event sources
-- **Backward Compatibility**: Supports both new simplified and legacy architectures
+- **Health Monitoring**: Built-in health checks and statistics for handlers
+- **Zero Dependencies**: Works with your existing server infrastructure
 
 ## Installation
 
@@ -20,8 +19,6 @@ go get github.com/abhishekvarshney/gomaint
 ```
 
 ## Quick Start
-
-### New Simplified Architecture (Recommended)
 
 ```go
 package main
@@ -43,16 +40,19 @@ func main() {
     }
 
     // Create HTTP handler for maintenance
-    httpMaintHandler := httpHandler.NewHTTPHandler(server, 30*time.Second)
+    handler := httpHandler.NewHTTPHandler(server, 30*time.Second)
+    
+    // Skip health check endpoints from maintenance mode
+    handler.SkipPaths("/health")
 
-    // Start maintenance manager with etcd event source
+    // Start maintenance manager with etcd - that's it!
     ctx := context.Background()
     mgr, err := gomaint.StartWithEtcd(
         ctx,
         []string{"localhost:2379"},  // etcd endpoints
         "/maintenance/my-service",   // etcd key to watch
         30*time.Second,              // drain timeout
-        httpMaintHandler,            // handlers
+        handler,                     // handlers to manage
     )
     if err != nil {
         panic(err)
@@ -61,96 +61,6 @@ func main() {
 
     // Start your server
     server.ListenAndServe()
-}
-```
-
-### Legacy Architecture (Backward Compatible)
-
-The legacy API is still supported for backward compatibility:
-
-```go
-// Create maintenance configuration (legacy approach)
-config := gomaint.NewConfig(
-    []string{"localhost:2379"},  // etcd endpoints
-    "/maintenance/my-service",   // etcd key to watch
-    30*time.Second,              // drain timeout
-)
-
-// Start maintenance manager (uses new architecture under the hood)
-ctx := context.Background()
-mgr, err := gomaint.Start(ctx, config, httpMaintHandler)
-```
-
-**Note**: The legacy API now uses the simplified event source architecture internally, providing the same clean design while maintaining backward compatibility.
-
-## Architecture
-
-### New Event Source Design Pattern
-
-GoMaint now uses a simplified architecture where each manager works with exactly one event source. This provides:
-
-- **Clear Responsibility**: One event source = one way to receive maintenance events
-- **Simpler API**: Direct configuration without complex event routing
-- **Better Performance**: No event filtering or routing overhead
-- **Easier Testing**: Clean interfaces for mocking and testing
-
-```go
-// Create etcd event source
-etcdConfig := gomaint.NewEtcdConfig("etcd", []string{"localhost:2379"}, "/maintenance/my-service")
-eventSource, err := gomaint.NewEtcdEventSource(etcdConfig)
-
-// Create manager with single event source
-mgr := gomaint.NewMaintenanceManager(eventSource, 30*time.Second)
-```
-
-### Event Source Types
-
-Currently supported event source:
-- **etcd**: Watches etcd keys for maintenance state changes
-
-Future event sources (extensible):
-- **File**: Watch filesystem files for changes
-- **HTTP**: Poll HTTP endpoints for maintenance status
-- **Database**: Watch database tables for maintenance flags
-
-## Configuration
-
-### New Architecture Configuration
-
-```go
-// Configure etcd event source
-etcdConfig := gomaint.NewEtcdConfig("my-etcd", []string{"localhost:2379"}, "/maintenance/my-service")
-etcdConfig.Timeout = 10 * time.Second
-etcdConfig.Username = "myuser"
-etcdConfig.Password = "mypass"
-
-// Create event source and manager
-eventSource, _ := gomaint.NewEtcdEventSource(etcdConfig)
-mgr := gomaint.NewMaintenanceManager(eventSource, 30*time.Second)
-```
-
-### Legacy Configuration (Still Supported)
-
-```go
-config := &gomaint.Config{
-    EtcdEndpoints: []string{"localhost:2379"},
-    KeyPath:       "/maintenance/my-service",
-    DrainTimeout:  30 * time.Second,
-    EtcdTimeout:   5 * time.Second,
-}
-```
-
-### TLS Configuration
-
-```go
-config := &gomaint.Config{
-    EtcdEndpoints: []string{"localhost:2379"},
-    EtcdTLS:       true,
-    EtcdCertFile:  "/path/to/cert.pem",
-    EtcdKeyFile:   "/path/to/key.pem",
-    EtcdCAFile:    "/path/to/ca.pem",
-    KeyPath:       "/maintenance/my-service",
-    DrainTimeout:  30 * time.Second,
 }
 ```
 
@@ -185,9 +95,6 @@ handler := grpcHandler.NewGRPCHandler(lis, 30*time.Second)
 
 // Register your gRPC services
 pb.RegisterUserServiceServer(handler.GetServer(), userService)
-
-// Start the server
-handler.Start(ctx)
 ```
 
 ### Database Handler
@@ -203,14 +110,15 @@ import (
 
 // Using GORM
 db, _ := gorm.Open(sqlite.Open("test.db"), &gorm.Config{})
-handler := databaseHandler.NewGORMHandler(db, log.Default())
+handler := databaseHandler.NewDatabaseHandler("gorm", db, log.Default())
 
 // Using XORM  
 import "xorm.io/xorm"
 engine, _ := xorm.NewEngine("sqlite3", "test.db")
-handler := databaseHandler.NewXORMHandler(engine, log.Default())
+wrapper := &XormWrapper{engine: engine} // Implement DB interface
+handler := databaseHandler.NewDatabaseHandler("xorm", wrapper, log.Default())
 
-// Generic database handler
+// Any database that implements the DB interface
 handler := databaseHandler.NewDatabaseHandler("custom", customDB, log.Default())
 ```
 
@@ -266,17 +174,17 @@ etcdctl put /maintenance/my-service false
 etcdctl del /maintenance/my-service
 ```
 
-### Programmatic Control
+### Environment Variables
 
-```go
-// Set maintenance mode
-err := mgr.SetMaintenanceMode(ctx, true)
+Configure your service with environment variables:
 
-// Get current maintenance mode
-inMaintenance, err := mgr.GetMaintenanceMode(ctx)
-
-// Wait for maintenance mode change
-err := mgr.WaitForMaintenanceMode(ctx, true, 30*time.Second)
+```bash
+# HTTP service example
+HTTP_PORT=8080 \
+ETCD_ENDPOINTS=localhost:2379 \
+ETCD_KEY=/maintenance/my-service \
+DRAIN_TIMEOUT=30s \
+./my-service
 ```
 
 ## Health Monitoring
@@ -286,14 +194,14 @@ err := mgr.WaitForMaintenanceMode(ctx, true, 30*time.Second)
 inMaintenance := mgr.IsInMaintenance()
 
 // Get health status of all handlers
-health := mgr.HealthCheck()
+health := mgr.GetHandlerHealth()
 fmt.Printf("HTTP Handler Health: %v", health["http"])
 
-// Get handler statistics
-if httpHandler, ok := mgr.GetHandler("http"); ok {
-    if h, ok := httpHandler.(*httpHandler.HTTPHandler); ok {
-        activeRequests := h.GetActiveRequestCount()
-        fmt.Printf("Active requests: %d", activeRequests)
+// Get specific handler for detailed stats
+if handler, exists := mgr.GetHandler("http"); exists {
+    if httpHandler, ok := handler.(*httpHandler.Handler); ok {
+        stats := httpHandler.GetStats()
+        fmt.Printf("Handler stats: %+v", stats)
     }
 }
 ```
@@ -325,76 +233,11 @@ func (h *CustomHandler) OnMaintenanceEnd(ctx context.Context) error {
     // Your maintenance end logic
     return nil
 }
-```
 
-## Event System
-
-The new event-driven architecture allows you to listen to state change events from multiple sources and provides advanced event handling capabilities.
-
-### Event Sources
-
-Currently supported event sources:
-- **ETCD**: Watches ETCD keys for changes (built-in)
-- **File System**: Watch file changes (coming soon)
-- **HTTP Webhooks**: Receive HTTP webhook events (coming soon)
-- **Database**: Monitor database triggers (coming soon)
-
-### Advanced Event Usage
-
-```go
-// Get the event manager for advanced usage
-eventManager := mgr.GetEventManager()
-
-// Subscribe to maintenance change events with custom filtering
-subscriptionID, err := eventManager.SubscribeWithFilter(
-    events.EventTypeMaintenanceChange,
-    func(event events.Event) bool {
-        // Only process events from specific sources
-        return event.Source == "etcd"
-    },
-    func(event events.Event) error {
-        log.Printf("Event: %s from %s, Value: %v", 
-            event.Type, event.Source, event.Value)
-        return nil
-    },
-)
-
-// Check event source health
-health := mgr.GetEventSourceHealth()
-for source, healthy := range health {
-    log.Printf("Source %s: healthy=%v", source, healthy)
+func (h *CustomHandler) IsHealthy() bool {
+    // Return your health check logic
+    return h.GetState() != handlers.StateError
 }
-
-// List available event sources
-sources := mgr.ListEventSources()
-log.Printf("Available sources: %v", sources)
-```
-
-### Event Types
-
-- `EventTypeMaintenanceChange`: Maintenance mode state changes
-- `EventTypeConfigChange`: Configuration changes (future)
-- `EventTypeHealthChange`: Health status changes (future)
-
-### Custom Event Sources
-
-You can implement custom event sources by implementing the `EventSource` interface:
-
-```go
-type CustomEventSource struct {
-    // Your implementation
-}
-
-func (c *CustomEventSource) Start(ctx context.Context) error { /* ... */ }
-func (c *CustomEventSource) Stop() error { /* ... */ }
-func (c *CustomEventSource) Subscribe(eventType events.EventType, callback events.EventCallback) error { /* ... */ }
-func (c *CustomEventSource) Unsubscribe(subscriptionID string) error { /* ... */ }
-func (c *CustomEventSource) Name() string { return "custom" }
-func (c *CustomEventSource) IsHealthy() bool { /* ... */ }
-func (c *CustomEventSource) GetLastEvent() *events.Event { /* ... */ }
-
-// Add to manager
-mgr.AddEventSource(customSource)
 ```
 
 ## Examples
@@ -402,10 +245,13 @@ mgr.AddEventSource(customSource)
 See the `examples/` directory for complete working examples:
 
 - `examples/http-service/` - HTTP service with maintenance mode
+- `examples/grpc-service/` - gRPC service with maintenance mode  
 - `examples/gorm-service/` - Database service with GORM
 - `examples/xorm-service/` - Database service with XORM  
 - `examples/kafka-service/` - Kafka message processing with consumer groups
 - `examples/sqs-service/` - SQS message processing with polling
+
+Each example includes Docker Compose files for easy testing with etcd.
 
 ## Maintenance Values
 
@@ -416,24 +262,58 @@ The library recognizes the following values as "maintenance mode enabled":
 - `enabled`
 - `maintenance`
 
-Any other value (including empty) is considered "maintenance mode disabled".
+Any other value (including empty or missing key) is considered "maintenance mode disabled".
+
+## Architecture
+
+GoMaint uses a simple and clean architecture:
+
+```
+┌─────────────────┐    ┌──────────────┐    ┌─────────────────┐
+│   Your Service  │◄───┤   Manager    │◄───┤ Etcd EventSource│
+│   (HTTP/gRPC/   │    │              │    └─────────────────┘
+│    Database)    │    │  - Etcd      │           │
+└─────────────────┘    │    Source    │           │
+                       │  - Multiple  │           │ 
+┌─────────────────┐    │    Handlers  │           │
+│   More Services │◄───┤              │           │
+└─────────────────┘    └──────────────┘      ┌────▼──────┐
+                                              │   etcd    │
+                                              │  cluster  │
+                                              └───────────┘
+```
+
+1. **etcd change** → Etcd watches key for changes
+2. **Manager** → Receives event and updates internal state  
+3. **Handlers** → Manager calls OnMaintenanceStart/End on all handlers
+4. **Services** → Handlers manage your HTTP servers, databases, queues, etc.
 
 ## Error Handling
 
-The library provides detailed error information:
+The library provides clear error information:
 
 ```go
-if err := mgr.Start(ctx); err != nil {
-    if configErr, ok := err.(*config.ErrInvalidConfig); ok {
-        fmt.Printf("Configuration error in field '%s': %s", configErr.Field, configErr.Reason)
-    }
-    // Handle other errors
+if err := gomaint.StartWithEtcd(ctx, endpoints, keyPath, timeout, handler); err != nil {
+    log.Fatalf("Failed to start maintenance manager: %v", err)
 }
 ```
 
 ## Thread Safety
 
 All operations are thread-safe and can be called concurrently from multiple goroutines.
+
+## Requirements
+
+- Go 1.21 or later
+- etcd v3.6+ for the etcd server
+
+## Dependencies
+
+- `go.etcd.io/etcd/client/v3` - etcd client
+- `github.com/IBM/sarama` - Kafka client (optional, only if using Kafka handler)
+- `github.com/aws/aws-sdk-go-v2/service/sqs` - AWS SQS client (optional, only if using SQS handler)
+- `gorm.io/gorm` - GORM ORM (optional, only if using GORM)
+- `xorm.io/xorm` - XORM ORM (optional, only if using XORM)
 
 ## Contributing
 
@@ -446,19 +326,6 @@ All operations are thread-safe and can be called concurrently from multiple goro
 ## License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
-
-## Requirements
-
-- Go 1.23 or later
-- etcd v3.6+ for the etcd server
-
-## Dependencies
-
-- `go.etcd.io/etcd/client/v3` - etcd client
-- `github.com/IBM/sarama` - Kafka client (optional, only if using Kafka handler)
-- `github.com/aws/aws-sdk-go-v2/service/sqs` - AWS SQS client (optional, only if using SQS handler)
-- `gorm.io/gorm` - GORM ORM (optional, only if using GORM)
-- `xorm.io/xorm` - XORM ORM (optional, only if using XORM)
 
 ## Support
 
