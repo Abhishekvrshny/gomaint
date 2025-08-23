@@ -7,7 +7,7 @@ A comprehensive Go library for gracefully handling service maintenance mode base
 - **Event-Driven Architecture**: Flexible event system supporting multiple state change sources
 - **etcd Integration**: Built-in ETCD event source for maintenance state changes
 - **Extensible Event Sources**: Easy to add new event sources (file system, webhooks, databases, etc.)
-- **Multiple Handler Support**: Built-in handlers for HTTP, gRPC, Kafka, SQS, GORM, and XORM
+- **Multiple Handler Support**: Built-in handlers for HTTP, Kafka, SQS, and generic database support (GORM, XORM, etc.)
 - **Event Filtering**: Advanced event filtering and routing capabilities
 - **Graceful Draining**: Configurable timeout for draining active connections/requests
 - **Thread-Safe**: Concurrent-safe operations with proper synchronization
@@ -103,54 +103,52 @@ import httpHandler "github.com/abhishekvarshney/gomaint/pkg/handlers/http"
 server := &http.Server{Addr: ":8080", Handler: mux}
 handler := httpHandler.NewHTTPHandler(server, 30*time.Second)
 
-// Add health check endpoint
-mux.HandleFunc("/health", handler.HealthCheckHandler())
-
-// Use as middleware
-middleware := httpHandler.HTTPMiddleware(handler)
-mux.Handle("/api/", middleware(apiHandler))
+// Skip health check endpoints from maintenance mode
+handler.SkipPaths("/health", "/metrics")
 ```
 
-### GORM Handler
+### Database Handler
 
-Manages database connections during maintenance mode.
+Manages database connections during maintenance mode. Works with any ORM that provides access to `*sql.DB`.
 
 ```go
-import gormHandler "github.com/abhishekvarshney/gomaint/pkg/handlers/gorm"
+import (
+    databaseHandler "github.com/abhishekvarshney/gomaint/pkg/handlers/database"
+    "gorm.io/gorm"
+    "gorm.io/driver/sqlite"
+)
 
+// Using GORM
 db, _ := gorm.Open(sqlite.Open("test.db"), &gorm.Config{})
+handler := databaseHandler.NewGORMHandler(db, log.Default())
 
-config := &gormHandler.ConnectionConfig{
-    MaxOpenConns:    10,
-    MaxIdleConns:    5,
-    ConnMaxLifetime: time.Hour,
-}
+// Using XORM  
+import "xorm.io/xorm"
+engine, _ := xorm.NewEngine("sqlite3", "test.db")
+handler := databaseHandler.NewXORMHandler(engine, log.Default())
 
-handler := gormHandler.NewGORMHandler(db, config)
-
-// Use read-only middleware during maintenance
-db.Use(handler.ReadOnlyMiddleware())
+// Generic database handler
+handler := databaseHandler.NewDatabaseHandler("custom", customDB, log.Default())
 ```
 
 ### Kafka Handler
 
-Pauses/resumes Kafka consumers and flushes producers during maintenance.
+Gracefully handles Kafka consumer groups during maintenance mode.
 
 ```go
 import kafkaHandler "github.com/abhishekvarshney/gomaint/pkg/handlers/kafka"
 
-handler := kafkaHandler.NewKafkaHandler(30 * time.Second)
+brokers := []string{"localhost:9092"}
+topics := []string{"my-topic"}
+consumerGroup := "my-service-group"
 
-// Add your Kafka consumers and producers
-handler.AddConsumer(myConsumer)
-handler.AddProducer(myProducer)
+config := kafkaHandler.DefaultConfig(brokers, topics, consumerGroup)
+processor := &MyMessageProcessor{} // Implement MessageProcessor interface
 
-// Use message processor for automatic maintenance handling
-processor := kafkaHandler.NewMessageProcessor(handler)
-err := processor.ProcessMessage(ctx, func(ctx context.Context) error {
-    // Your message processing logic
-    return nil
-})
+handler, err := kafkaHandler.NewKafkaHandler(brokers, config, processor, log.Default())
+if err != nil {
+    log.Fatal(err)
+}
 ```
 
 ### SQS Handler
@@ -158,17 +156,16 @@ err := processor.ProcessMessage(ctx, func(ctx context.Context) error {
 Stops SQS polling during maintenance and waits for in-flight messages to complete.
 
 ```go
-import sqsHandler "github.com/abhishekvarshney/gomaint/pkg/handlers/sqs"
+import (
+    sqsHandler "github.com/abhishekvarshney/gomaint/pkg/handlers/sqs"
+    "github.com/aws/aws-sdk-go-v2/service/sqs"
+)
 
-handler := sqsHandler.NewSQSHandler(30 * time.Second)
-handler.AddConsumer(mySQSConsumer)
+client := sqs.NewFromConfig(awsConfig)
+config := sqsHandler.DefaultConfig("https://sqs.region.amazonaws.com/account/queue")
+processor := &MyMessageProcessor{} // Implement MessageProcessor interface
 
-// Use message processor
-processor := sqsHandler.NewMessageProcessor(handler)
-err := processor.ProcessMessage(ctx, message, func(ctx context.Context, msg sqsHandler.Message) error {
-    // Your message processing logic
-    return nil
-})
+handler := sqsHandler.NewSQSHandler(client, config, processor, log.Default())
 ```
 
 ## Maintenance Control
@@ -322,8 +319,10 @@ mgr.AddEventSource(customSource)
 See the `examples/` directory for complete working examples:
 
 - `examples/http-service/` - HTTP service with maintenance mode
-- `examples/event-system/` - Advanced event system usage
-- More examples coming soon...
+- `examples/gorm-service/` - Database service with GORM
+- `examples/xorm-service/` - Database service with XORM  
+- `examples/kafka-service/` - Kafka message processing with consumer groups
+- `examples/sqs-service/` - SQS message processing with polling
 
 ## Maintenance Values
 
@@ -367,13 +366,16 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 ## Requirements
 
-- Go 1.19 or later
+- Go 1.23 or later
 - etcd v3.6+ for the etcd server
 
 ## Dependencies
 
 - `go.etcd.io/etcd/client/v3` - etcd client
-- `gorm.io/gorm` - GORM ORM (optional, only if using GORM handler)
+- `github.com/IBM/sarama` - Kafka client (optional, only if using Kafka handler)
+- `github.com/aws/aws-sdk-go-v2/service/sqs` - AWS SQS client (optional, only if using SQS handler)
+- `gorm.io/gorm` - GORM ORM (optional, only if using GORM)
+- `xorm.io/xorm` - XORM ORM (optional, only if using XORM)
 
 ## Support
 

@@ -25,6 +25,12 @@ func main() {
 		w.Write([]byte("Hello, World!"))
 	})
 
+	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"status": "healthy", "timestamp": "` + time.Now().Format(time.RFC3339) + `"}`))
+	})
+
 	mux.HandleFunc("/api/data", func(w http.ResponseWriter, r *http.Request) {
 		// Simulate some processing time
 		time.Sleep(2 * time.Second)
@@ -52,7 +58,7 @@ func main() {
 	)
 
 	// Create HTTP handler for maintenance
-	httpMaintenanceHandler := httpHandler.NewHandler(server, 30*time.Second)
+	httpMaintenanceHandler := httpHandler.NewHTTPHandler(server, 30*time.Second)
 
 	// skip maintenance for health check URL
 	httpMaintenanceHandler.SkipPaths("/health")

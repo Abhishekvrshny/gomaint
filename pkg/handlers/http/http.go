@@ -3,14 +3,13 @@ package http
 import (
 	"context"
 	"fmt"
-	"github.com/abhishekvarshney/gomaint/pkg/set"
-	"log"
 	"net/http"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/abhishekvarshney/gomaint/pkg/handlers"
+	"github.com/abhishekvarshney/gomaint/pkg/set"
 )
 
 // Handler handles HTTP server maintenance mode
@@ -24,8 +23,8 @@ type Handler struct {
 	wg              sync.WaitGroup
 }
 
-// NewHandler creates a new HTTP handler
-func NewHandler(server *http.Server, drainTimeout time.Duration) *Handler {
+// NewHTTPHandler creates a new HTTP handler
+func NewHTTPHandler(server *http.Server, drainTimeout time.Duration) *Handler {
 	h := &Handler{
 		BaseHandler:     handlers.NewBaseHandler("http"),
 		server:          server,
@@ -38,6 +37,11 @@ func NewHandler(server *http.Server, drainTimeout time.Duration) *Handler {
 	server.Handler = h.wrapHandler(server.Handler)
 
 	return h
+}
+
+// NewHandler creates a new HTTP handler (deprecated: use NewHTTPHandler)
+func NewHandler(server *http.Server, drainTimeout time.Duration) *Handler {
+	return NewHTTPHandler(server, drainTimeout)
 }
 
 func (h *Handler) SkipPaths(paths ...interface{}) {
@@ -76,7 +80,6 @@ func (h *Handler) OnMaintenanceEnd(ctx context.Context) error {
 // wrapHandler wraps the original handler to implement maintenance mode logic
 func (h *Handler) wrapHandler(original http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		log.Printf("url path %s", r.URL.Path)
 		// Skip maintenance mode logic for health check requests
 		if h.skipPaths.Contains(r.URL.Path) {
 			if original != nil {
@@ -92,6 +95,10 @@ func (h *Handler) wrapHandler(original http.Handler) http.Handler {
 			h.writeMaintenanceResponse(w, r)
 			return
 		}
+
+		// Track active requests for graceful draining
+		h.wg.Add(1)
+		defer h.wg.Done()
 
 		// Call original handler
 		if original != nil {
@@ -120,6 +127,23 @@ func (h *Handler) writeMaintenanceResponse(w http.ResponseWriter, r *http.Reques
 // IsInMaintenance returns true if the handler is in maintenance mode
 func (h *Handler) IsInMaintenance() bool {
 	return atomic.LoadInt32(&h.inMaintenance) == 1
+}
+
+// GetActiveRequestCount returns the number of active requests
+func (h *Handler) GetActiveRequestCount() int {
+	// This is a simple approximation - in production you might want a more accurate counter
+	return int(atomic.LoadInt32(&h.inMaintenance))
+}
+
+// GetStats returns handler statistics
+func (h *Handler) GetStats() map[string]interface{} {
+	return map[string]interface{}{
+		"handler_name":     h.Name(),
+		"handler_state":    h.State().String(),
+		"in_maintenance":   atomic.LoadInt32(&h.inMaintenance) == 1,
+		"drain_timeout":    h.drainTimeout.String(),
+		"server_addr":      h.server.Addr,
+	}
 }
 
 // Shutdown gracefully shuts down the HTTP server
