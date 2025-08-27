@@ -47,13 +47,15 @@ This directory contains comprehensive examples demonstrating the GoMaint library
 All examples are designed to run independently without conflicts:
 
 ### Port Allocation
-| Service | HTTP | PostgreSQL/LocalStack | etcd Client | etcd Peer |
-|---------|------|----------------------|-------------|-----------|
+| Service | HTTP | PostgreSQL/Kafka/LocalStack | etcd Client | etcd Peer |
+|---------|------|-----------------------------|-------------|-----------|
 | http-service | 8080 | N/A | N/A | N/A |
 | gorm-service | 8080 | 5432 | 2379 | 2380 |
 | xorm-service | 8081 | 5433 | 2389 | 2390 |
 | sqs-service | 8082 | 4566 (LocalStack) | 2399 | 2400 |
 | gin-service | 8084 | N/A | 2403 | 2404 |
+| kafka-sarama-service | 8083 | 9092 (Kafka) | 2401 | 2402 |
+| kafka-confluent-service | 8084 | 9092 (Kafka) | 2401 | 2402 |
 
 ### Resource Separation
 - **gorm-service**: Uses database `testdb`
