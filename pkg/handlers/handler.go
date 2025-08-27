@@ -3,7 +3,8 @@ package handlers
 import (
 	"context"
 	"errors"
-	"log"
+
+	"github.com/abhishekvarshney/gomaint/pkg/logger"
 )
 
 // Common errors
@@ -12,42 +13,6 @@ var (
 	ErrDrainTimeout    = errors.New("timeout waiting for requests to drain")
 )
 
-// Logger interface for handlers
-type Logger interface {
-	Info(args ...interface{})
-	Infof(format string, args ...interface{})
-	Warn(args ...interface{})
-	Warnf(format string, args ...interface{})
-	Error(args ...interface{})
-	Errorf(format string, args ...interface{})
-}
-
-// DefaultLogger implements Logger using standard log package
-type DefaultLogger struct{}
-
-func (l *DefaultLogger) Info(args ...interface{}) {
-	log.Println(append([]interface{}{"INFO:"}, args...)...)
-}
-
-func (l *DefaultLogger) Infof(format string, args ...interface{}) {
-	log.Printf("INFO: "+format, args...)
-}
-
-func (l *DefaultLogger) Warn(args ...interface{}) {
-	log.Println(append([]interface{}{"WARN:"}, args...)...)
-}
-
-func (l *DefaultLogger) Warnf(format string, args ...interface{}) {
-	log.Printf("WARN: "+format, args...)
-}
-
-func (l *DefaultLogger) Error(args ...interface{}) {
-	log.Println(append([]interface{}{"ERROR:"}, args...)...)
-}
-
-func (l *DefaultLogger) Errorf(format string, args ...interface{}) {
-	log.Printf("ERROR: "+format, args...)
-}
 
 // Handler defines the interface that all maintenance handlers must implement
 type Handler interface {
@@ -90,7 +55,7 @@ func (s HandlerState) String() string {
 type BaseHandler struct {
 	name   string
 	state  HandlerState
-	logger Logger
+	logger logger.Logger
 }
 
 // NewBaseHandler creates a new base handler
@@ -98,7 +63,7 @@ func NewBaseHandler(name string) *BaseHandler {
 	return &BaseHandler{
 		name:   name,
 		state:  StateNormal,
-		logger: &DefaultLogger{},
+		logger: logger.NewDefaultLogger(),
 	}
 }
 
@@ -123,11 +88,11 @@ func (h *BaseHandler) IsHealthy() bool {
 }
 
 // Logger returns the logger instance
-func (h *BaseHandler) Logger() Logger {
+func (h *BaseHandler) Logger() logger.Logger {
 	return h.logger
 }
 
 // SetLogger sets a custom logger
-func (h *BaseHandler) SetLogger(logger Logger) {
-	h.logger = logger
+func (h *BaseHandler) SetLogger(l logger.Logger) {
+	h.logger = l
 }
