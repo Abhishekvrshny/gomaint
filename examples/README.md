@@ -34,6 +34,14 @@ This directory contains comprehensive examples demonstrating the GoMaint library
 - **etcd**: Port `2399/2400`
 - **etcd Key**: `/maintenance/sqs-service`
 
+### 5. Gin Service (`gin-service/`)
+- **Purpose**: RESTful API service using Gin framework
+- **Framework**: Gin Web Framework
+- **HTTP Port**: `8084`
+- **etcd**: Port `2403/2404`
+- **etcd Key**: `/maintenance/gin-service`
+- **Features**: CRUD operations, user search, JSON API
+
 ## Running Multiple Services
 
 All examples are designed to run independently without conflicts:
@@ -45,6 +53,7 @@ All examples are designed to run independently without conflicts:
 | gorm-service | 8080 | 5432 | 2379 | 2380 |
 | xorm-service | 8081 | 5433 | 2389 | 2390 |
 | sqs-service | 8082 | 4566 (LocalStack) | 2399 | 2400 |
+| gin-service | 8084 | N/A | 2403 | 2404 |
 
 ### Resource Separation
 - **gorm-service**: Uses database `testdb`
@@ -55,6 +64,7 @@ All examples are designed to run independently without conflicts:
 - **gorm-service**: `database-postgres`, `etcd`, `database-service`
 - **xorm-service**: `xorm-postgres`, `xorm-etcd`, `xorm-service`
 - **sqs-service**: `sqs-localstack`, `sqs-etcd`, `sqs-service`, `sqs-aws-cli`
+- **gin-service**: `gin-etcd`, `gin-service`
 
 ## Quick Start
 
@@ -80,6 +90,11 @@ curl http://localhost:8081/health
 cd ../sqs-service
 docker-compose up -d
 curl http://localhost:8082/health
+
+# Gin Service
+cd ../gin-service
+docker-compose up -d
+curl http://localhost:8084/health
 ```
 
 ### Run Multiple Services Simultaneously
@@ -97,10 +112,15 @@ docker-compose up
 cd examples/sqs-service
 docker-compose up
 
-# Terminal 4 - Test all services
+# Terminal 4 - Start gin-service
+cd examples/gin-service
+docker-compose up
+
+# Terminal 5 - Test all services
 curl http://localhost:8080/users         # gorm-service
 curl http://localhost:8081/users         # xorm-service  
 curl http://localhost:8082/messages/stats # sqs-service
+curl http://localhost:8084/api/v1/users  # gin-service
 ```
 
 ## Generic Database Handler
@@ -135,6 +155,10 @@ curl http://localhost:8081/health  # Should show maintenance mode
 # sqs-service
 ETCDCTL_API=3 etcdctl --endpoints=localhost:2399 put /maintenance/sqs-service true
 curl http://localhost:8082/health  # Should show maintenance mode
+
+# gin-service
+ETCDCTL_API=3 etcdctl --endpoints=localhost:2403 put /maintenance/gin-service true
+curl http://localhost:8084/health  # Should show maintenance mode
 ```
 
 ## Architecture Comparison
@@ -144,9 +168,10 @@ All services follow the same architecture pattern:
 1. **HTTP Layer**: REST API with health checks
 2. **Business Logic**: CRUD operations or message processing
 3. **Resource Handler**: Maintenance-aware resource management
+   - **HTTP Handler**: Request rejection and graceful shutdown (http-service, gin-service)
    - **Database Handler**: Connection pool management (GORM, XORM)
    - **SQS Handler**: Message processing and draining
 4. **Resource Layer**: PostgreSQL, SQS, or HTTP requests
 5. **Coordination**: etcd for maintenance state
 
-The key insight is that different handlers abstract maintenance mode management from the specific resource type, providing consistent behavior across databases, message queues, and HTTP services while handling their unique maintenance requirements (connection pooling vs. message draining vs. request rejection).
+The key insight is that different handlers abstract maintenance mode management from the specific resource type, providing consistent behavior across databases, message queues, and HTTP services while handling their unique maintenance requirements (connection pooling vs. message draining vs. request rejection). The gin-service demonstrates advanced HTTP service patterns with RESTful APIs while maintaining the same maintenance mode integration.
