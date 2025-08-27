@@ -12,8 +12,8 @@ import (
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	"github.com/google/uuid"
 	pb "github.com/abhishekvarshney/gomaint/examples/grpc-service/proto"
+	"github.com/google/uuid"
 )
 
 // UserService implements the UserService gRPC interface
@@ -37,7 +37,7 @@ func NewUserService() *UserService {
 // seedUsers adds some initial users for testing
 func (s *UserService) seedUsers() {
 	now := timestamppb.Now()
-	
+
 	sampleUsers := []*pb.User{
 		{
 			Id:        uuid.New().String(),
@@ -220,11 +220,11 @@ func (s *UserService) ListUsers(ctx context.Context, req *pb.ListUsersRequest) (
 	}
 
 	totalCount := int32(len(filteredUsers))
-	
+
 	// Paginate
 	startIdx := (page - 1) * pageSize
 	endIdx := startIdx + pageSize
-	
+
 	if startIdx >= totalCount {
 		return &pb.ListUsersResponse{
 			Users:      []*pb.User{},
@@ -233,11 +233,11 @@ func (s *UserService) ListUsers(ctx context.Context, req *pb.ListUsersRequest) (
 			PageSize:   pageSize,
 		}, nil
 	}
-	
+
 	if endIdx > totalCount {
 		endIdx = totalCount
 	}
-	
+
 	pageUsers := filteredUsers[startIdx:endIdx]
 
 	return &pb.ListUsersResponse{

@@ -22,28 +22,28 @@ type Handler = handlers.Handler
 func StartWithEtcd(ctx context.Context, endpoints []string, keyPath string, drainTimeout time.Duration, handlers ...Handler) (*Manager, error) {
 	// Create etcd configuration
 	etcdConfig := eventsource.NewEtcdConfig("etcd", endpoints, keyPath)
-	
+
 	// Create etcd event source
 	eventSource, err := eventsource.NewEtcdEventSource(etcdConfig)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// Create maintenance manager
 	mgr := maintenance.NewManager(eventSource, drainTimeout)
-	
+
 	// Register all handlers
 	for _, handler := range handlers {
 		if err := mgr.RegisterHandler(handler); err != nil {
 			return nil, err
 		}
 	}
-	
+
 	// Start the manager
 	if err := mgr.Start(ctx); err != nil {
 		return nil, err
 	}
-	
+
 	return mgr, nil
 }
 

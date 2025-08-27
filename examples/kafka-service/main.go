@@ -14,10 +14,10 @@ import (
 	"time"
 
 	"github.com/IBM/sarama"
-	
+
 	"github.com/abhishekvarshney/gomaint"
 	kafkaHandler "github.com/abhishekvarshney/gomaint/pkg/handlers/kafka"
-	)
+)
 
 // MessageProcessor implements the Kafka message processing logic
 type MessageProcessor struct {
@@ -27,25 +27,25 @@ type MessageProcessor struct {
 // ProcessMessage processes a single Kafka message
 func (mp *MessageProcessor) ProcessMessage(ctx context.Context, message *sarama.ConsumerMessage) error {
 	messageBody := string(message.Value)
-	
-	mp.logger.Printf("Processing message from topic %s partition %d offset %d: %s", 
+
+	mp.logger.Printf("Processing message from topic %s partition %d offset %d: %s",
 		message.Topic, message.Partition, message.Offset, messageBody)
-	
+
 	// Simulate processing time (1-3 seconds)
 	processingTime := time.Duration(1+rand.Intn(3)) * time.Second
-	
+
 	// Check for context cancellation during processing
 	timer := time.NewTimer(processingTime)
 	defer timer.Stop()
-	
+
 	select {
 	case <-timer.C:
 		// Processing completed successfully
-		mp.logger.Printf("Successfully processed message from topic %s partition %d offset %d after %v", 
+		mp.logger.Printf("Successfully processed message from topic %s partition %d offset %d after %v",
 			message.Topic, message.Partition, message.Offset, processingTime)
 		return nil
 	case <-ctx.Done():
-		mp.logger.Printf("Processing cancelled for message from topic %s partition %d offset %d: %v", 
+		mp.logger.Printf("Processing cancelled for message from topic %s partition %d offset %d: %v",
 			message.Topic, message.Partition, message.Offset, ctx.Err())
 		return ctx.Err()
 	}
@@ -466,9 +466,9 @@ func (app *App) topicsInfoHandler(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
-		"topics":      app.topics,
-		"metadata":    metadata,
-		"timestamp":   time.Now().UTC(),
+		"topics":    app.topics,
+		"metadata":  metadata,
+		"timestamp": time.Now().UTC(),
 	})
 }
 

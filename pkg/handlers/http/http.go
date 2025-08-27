@@ -143,11 +143,11 @@ func (h *Handler) GetActiveRequestCount() int {
 // GetStats returns handler statistics
 func (h *Handler) GetStats() map[string]interface{} {
 	return map[string]interface{}{
-		"handler_name":     h.Name(),
-		"handler_state":    h.State().String(),
-		"in_maintenance":   atomic.LoadInt32(&h.inMaintenance) == 1,
-		"drain_timeout":    h.drainTimeout.String(),
-		"server_addr":      h.server.Addr,
+		"handler_name":   h.Name(),
+		"handler_state":  h.State().String(),
+		"in_maintenance": atomic.LoadInt32(&h.inMaintenance) == 1,
+		"drain_timeout":  h.drainTimeout.String(),
+		"server_addr":    h.server.Addr,
 	}
 }
 

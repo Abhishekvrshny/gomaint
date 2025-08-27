@@ -5,13 +5,14 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"github.com/abhishekvarshney/gomaint"
 	"log"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
+
+	"github.com/abhishekvarshney/gomaint"
 
 	"github.com/abhishekvarshney/gomaint/pkg/handlers/database"
 	_ "github.com/lib/pq"
@@ -98,7 +99,7 @@ func setupApp() (*App, error) {
 	// Create database handler (works with GORM, XORM, or any ORM with sql.DB access)
 	mockDB := &MockDB{db: db}
 	dbHandler := database.NewDatabaseHandler("database", mockDB, 30*time.Second, log.Default())
-	
+
 	// Create maintenance manager using new simplified API
 	endpoints := []string{getEnv("ETCD_ENDPOINTS", "localhost:2379")}
 	mgr, err := gomaint.StartWithEtcd(

@@ -29,7 +29,7 @@ func main() {
 	ctx := context.Background()
 
 	fmt.Println("=== gRPC User Service Client Demo ===")
-	
+
 	// Test health check
 	fmt.Println("\n1. Testing Health Check...")
 	testHealthCheck(ctx, healthClient)
@@ -249,7 +249,7 @@ func testChatWithUsers(ctx context.Context, client pb.UserServiceClient) {
 		select {
 		case resp := <-respChan:
 			if resp != nil {
-				fmt.Printf("  Received: %s (ID: %s) - %s\n", 
+				fmt.Printf("  Received: %s (ID: %s) - %s\n",
 					resp.User.Name, resp.User.Id, resp.Message)
 			}
 		case err := <-errChan:

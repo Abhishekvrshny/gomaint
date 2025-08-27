@@ -80,15 +80,15 @@ func TestDefaultLogger(t *testing.T) {
 func TestLoggerInterface(t *testing.T) {
 	// Redirect log output to discard during interface test
 	log.SetOutput(os.Stderr)
-	
+
 	var l Logger
 	l = NewDefaultLogger()
-	
+
 	// Test that it implements the interface correctly
 	if l == nil {
 		t.Error("Logger should not be nil")
 	}
-	
+
 	// Test all methods exist (will cause compilation error if not)
 	l.Info("test")
 	l.Infof("test %s", "format")

@@ -302,6 +302,52 @@ if err := gomaint.StartWithEtcd(ctx, endpoints, keyPath, timeout, handler); err 
 
 All operations are thread-safe and can be called concurrently from multiple goroutines.
 
+## Development
+
+### Makefile
+
+The project includes a comprehensive Makefile for development and CI/CD tasks:
+
+```bash
+# Install development tools
+make install-tools
+
+# Code quality checks
+make goimports-check      # Check import formatting
+make gofmt-check         # Check Go code formatting 
+make lint-check          # Run staticcheck linter
+
+# Fix formatting issues
+make goimports-fix       # Fix import formatting
+make gofmt-fix          # Fix Go code formatting
+make format             # Fix all formatting issues
+
+# Testing and building
+make test               # Run tests
+make test-race          # Run tests with race detection
+make coverage           # Generate coverage report
+make build              # Build the project
+make build-examples     # Build all example services
+
+# All-in-one commands
+make lint               # Run all linting checks
+make pre-commit         # Run lint + test (useful before commits)
+make ci                 # Full CI pipeline (deps, lint, test, race, build, examples)
+
+# Get help
+make help              # Show all available targets
+```
+
+### Pre-commit Hook
+
+For consistent code quality, run before committing:
+
+```bash
+make pre-commit
+```
+
+This runs linting and tests to ensure code quality.
+
 ## Requirements
 
 - Go 1.21 or later

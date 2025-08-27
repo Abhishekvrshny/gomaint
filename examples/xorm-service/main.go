@@ -15,7 +15,7 @@ import (
 
 	"github.com/abhishekvarshney/gomaint"
 	"github.com/abhishekvarshney/gomaint/pkg/handlers/database"
-		_ "github.com/lib/pq"
+	_ "github.com/lib/pq"
 	"xorm.io/xorm"
 )
 
@@ -92,7 +92,7 @@ func setupApp() (*App, error) {
 	// Construct the connection string (DSN)
 	dsn := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
 		host, port, user, password, dbname, sslmode)
-	
+
 	log.Printf("Connecting to database: host=%s, port=%d, dbname=%s", host, port, dbname)
 
 	// Create XORM engine

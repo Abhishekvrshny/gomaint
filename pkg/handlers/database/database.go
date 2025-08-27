@@ -29,11 +29,11 @@ type ConnectionSettings struct {
 // Works with any ORM that provides access to the underlying sql.DB
 type Handler struct {
 	*handlers.BaseHandler
-	db               DB
-	logger           *log.Logger
-	originalSettings *ConnectionSettings
-	settingsMux      sync.RWMutex
-	drainTimeout     time.Duration
+	db                DB
+	logger            *log.Logger
+	originalSettings  *ConnectionSettings
+	settingsMux       sync.RWMutex
+	drainTimeout      time.Duration
 	activeConnections int32 // atomic counter for active connections
 }
 
@@ -115,14 +115,14 @@ func (h *Handler) OnMaintenanceStart(ctx context.Context) error {
 
 	// Set minimum possible connection pool settings during maintenance
 	// These are the absolute minimum values to reduce database load
-	sqlDB.SetMaxIdleConns(0)                       // No idle connections
-	sqlDB.SetMaxOpenConns(1)                       // Only 1 connection maximum
-	sqlDB.SetConnMaxLifetime(h.drainTimeout / 10)  // Short lifetime relative to drain timeout
-	sqlDB.SetConnMaxIdleTime(h.drainTimeout / 10)  // Short idle time relative to drain timeout
+	sqlDB.SetMaxIdleConns(0)                      // No idle connections
+	sqlDB.SetMaxOpenConns(1)                      // Only 1 connection maximum
+	sqlDB.SetConnMaxLifetime(h.drainTimeout / 10) // Short lifetime relative to drain timeout
+	sqlDB.SetConnMaxIdleTime(h.drainTimeout / 10) // Short idle time relative to drain timeout
 
 	// Wait for active connections to drain or timeout
 	h.logger.Printf("Database Handler (%s): Waiting for active connections to drain (timeout: %v)", h.Name(), h.drainTimeout)
-	
+
 	drainStart := time.Now()
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()

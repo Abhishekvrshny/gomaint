@@ -44,30 +44,30 @@ type Config struct {
 // DefaultConfig returns a default configuration
 func DefaultConfig(brokers []string, topics []string, consumerGroup string) *Config {
 	return &Config{
-		Brokers:           brokers,
-		Topics:            topics,
-		ConsumerGroup:     consumerGroup,
-		BatchSize:         100,
-		SessionTimeout:    30 * time.Second,
-		HeartbeatInterval: 3 * time.Second,
-		DrainTimeout:      45 * time.Second,
-		MaxProcessingTime: 30 * time.Second,
-		OffsetInitial:     sarama.OffsetNewest,
-		EnableAutoCommit:  false, // Manual commit for better control
+		Brokers:            brokers,
+		Topics:             topics,
+		ConsumerGroup:      consumerGroup,
+		BatchSize:          100,
+		SessionTimeout:     30 * time.Second,
+		HeartbeatInterval:  3 * time.Second,
+		DrainTimeout:       45 * time.Second,
+		MaxProcessingTime:  30 * time.Second,
+		OffsetInitial:      sarama.OffsetNewest,
+		EnableAutoCommit:   false, // Manual commit for better control
 		AutoCommitInterval: 1 * time.Second,
-		RetryBackoff:      2 * time.Second,
-		MaxWorkers:        10,
+		RetryBackoff:       2 * time.Second,
+		MaxWorkers:         10,
 	}
 }
 
 // Handler implements the Handler interface for Kafka message processing
 type Handler struct {
 	*handlers.BaseHandler
-	client       sarama.Client
+	client        sarama.Client
 	consumerGroup sarama.ConsumerGroup
-	config       *Config
-	processor    MessageProcessor
-	logger       *log.Logger
+	config        *Config
+	processor     MessageProcessor
+	logger        *log.Logger
 
 	// State management
 	inMaintenance int32 // atomic boolean
@@ -87,14 +87,14 @@ type Handler struct {
 
 // Stats holds statistics for the Kafka handler
 type Stats struct {
-	MessagesReceived   int64
-	MessagesProcessed  int64
-	MessagesFailed     int64
-	MessagesInFlight   int64
-	LastMessageTime    time.Time
-	ProcessingErrors   []string
-	ConsumerLag        map[string]map[int32]int64 // topic -> partition -> lag
-	mu                 sync.RWMutex
+	MessagesReceived  int64
+	MessagesProcessed int64
+	MessagesFailed    int64
+	MessagesInFlight  int64
+	LastMessageTime   time.Time
+	ProcessingErrors  []string
+	ConsumerLag       map[string]map[int32]int64 // topic -> partition -> lag
+	mu                sync.RWMutex
 }
 
 // ConsumerGroupHandler implements sarama.ConsumerGroupHandler
@@ -302,20 +302,20 @@ func (h *Handler) GetStats() map[string]interface{} {
 	defer h.stats.mu.RUnlock()
 
 	stats := map[string]interface{}{
-		"handler_name":         h.Name(),
-		"handler_state":        h.State().String(),
-		"topics":               h.config.Topics,
-		"consumer_group":       h.config.ConsumerGroup,
-		"brokers":              h.config.Brokers,
-		"in_maintenance":       atomic.LoadInt32(&h.inMaintenance) == 1,
-		"messages_received":    h.stats.MessagesReceived,
-		"messages_processed":   h.stats.MessagesProcessed,
-		"messages_failed":      h.stats.MessagesFailed,
-		"messages_in_flight":   h.stats.MessagesInFlight,
-		"last_message_time":    h.stats.LastMessageTime,
-		"drain_timeout":        h.config.DrainTimeout.String(),
-		"max_workers":          h.config.MaxWorkers,
-		"consumer_lag":         h.stats.ConsumerLag,
+		"handler_name":       h.Name(),
+		"handler_state":      h.State().String(),
+		"topics":             h.config.Topics,
+		"consumer_group":     h.config.ConsumerGroup,
+		"brokers":            h.config.Brokers,
+		"in_maintenance":     atomic.LoadInt32(&h.inMaintenance) == 1,
+		"messages_received":  h.stats.MessagesReceived,
+		"messages_processed": h.stats.MessagesProcessed,
+		"messages_failed":    h.stats.MessagesFailed,
+		"messages_in_flight": h.stats.MessagesInFlight,
+		"last_message_time":  h.stats.LastMessageTime,
+		"drain_timeout":      h.config.DrainTimeout.String(),
+		"max_workers":        h.config.MaxWorkers,
+		"consumer_lag":       h.stats.ConsumerLag,
 	}
 
 	// Include recent errors if any
@@ -370,7 +370,7 @@ func (h *Handler) consumerLoop(ctx context.Context) {
 			if err != nil {
 				h.logger.Printf("Kafka Handler: Error consuming messages: %v", err)
 				h.addProcessingError(err.Error())
-				
+
 				// Retry after backoff
 				select {
 				case <-time.After(h.config.RetryBackoff):
@@ -516,7 +516,7 @@ func (h *Handler) GetTopicMetadata() (map[string]interface{}, error) {
 		}
 
 		topicInfo := map[string]interface{}{
-			"partitions": len(partitions),
+			"partitions":     len(partitions),
 			"partition_list": partitions,
 		}
 

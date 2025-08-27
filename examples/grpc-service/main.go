@@ -11,11 +11,11 @@ import (
 	"syscall"
 	"time"
 
-	"go.etcd.io/etcd/client/v3"
+	clientv3 "go.etcd.io/etcd/client/v3"
 
-	grpchandler "github.com/abhishekvarshney/gomaint/pkg/handlers/grpc"
-	"github.com/abhishekvarshney/gomaint/examples/grpc-service/server"
 	pb "github.com/abhishekvarshney/gomaint/examples/grpc-service/proto"
+	"github.com/abhishekvarshney/gomaint/examples/grpc-service/server"
+	grpchandler "github.com/abhishekvarshney/gomaint/pkg/handlers/grpc"
 )
 
 const (
@@ -30,7 +30,7 @@ func main() {
 	port := getEnv("GRPC_PORT", defaultPort)
 	etcdEndpoints := getEnv("ETCD_ENDPOINTS", defaultEtcdEndpoint)
 	etcdKey := getEnv("ETCD_KEY", defaultEtcdKey)
-	
+
 	// Parse drain timeout
 	drainTimeoutStr := getEnv("DRAIN_TIMEOUT", "30s")
 	drainTimeout, err := time.ParseDuration(drainTimeoutStr)
@@ -102,7 +102,7 @@ func main() {
 
 func monitorMaintenanceMode(ctx context.Context, client *clientv3.Client, key string, handler *grpchandler.Handler) {
 	watchChan := client.Watch(ctx, key)
-	
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -111,7 +111,7 @@ func monitorMaintenanceMode(ctx context.Context, client *clientv3.Client, key st
 			for _, event := range watchResp.Events {
 				value := string(event.Kv.Value)
 				log.Printf("etcd event: %s = %s", string(event.Kv.Key), value)
-				
+
 				switch strings.ToLower(value) {
 				case "true", "1", "yes", "on":
 					log.Println("Entering maintenance mode...")

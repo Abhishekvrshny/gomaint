@@ -29,7 +29,7 @@ type Handler struct {
 // NewGRPCHandler creates a new gRPC handler
 func NewGRPCHandler(listener net.Listener, drainTimeout time.Duration) *Handler {
 	server := grpc.NewServer(
-		grpc.UnaryInterceptor(nil), // Will be set in wrapUnaryInterceptor
+		grpc.UnaryInterceptor(nil),  // Will be set in wrapUnaryInterceptor
 		grpc.StreamInterceptor(nil), // Will be set in wrapStreamInterceptor
 	)
 

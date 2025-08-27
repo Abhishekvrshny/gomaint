@@ -26,7 +26,7 @@ func main() {
 	port := getEnv("HTTP_PORT", defaultPort)
 	etcdEndpoints := getEnv("ETCD_ENDPOINTS", defaultEtcdEndpoint)
 	etcdKey := getEnv("ETCD_KEY", defaultEtcdKey)
-	
+
 	// Parse drain timeout
 	drainTimeoutStr := getEnv("DRAIN_TIMEOUT", "30s")
 	drainTimeout, err := time.ParseDuration(drainTimeoutStr)
@@ -67,7 +67,7 @@ func main() {
 
 	// Create HTTP handler for maintenance mode
 	handler := httpHandler.NewHTTPHandler(server, drainTimeout)
-	
+
 	// Skip health check endpoints from maintenance mode
 	handler.SkipPaths("/health")
 

@@ -13,7 +13,6 @@ var (
 	ErrDrainTimeout    = errors.New("timeout waiting for requests to drain")
 )
 
-
 // Handler defines the interface that all maintenance handlers must implement
 type Handler interface {
 	// OnMaintenanceStart is called when the service enters maintenance mode

@@ -14,20 +14,20 @@ import (
 // EtcdConfig holds etcd-specific configuration
 type EtcdConfig struct {
 	Config
-	
+
 	// Endpoints is the list of etcd endpoints
 	Endpoints []string `json:"endpoints"`
-	
+
 	// KeyPath is the etcd key to watch for maintenance state
 	KeyPath string `json:"key_path"`
-	
+
 	// Timeout for etcd operations
 	Timeout time.Duration `json:"timeout"`
-	
+
 	// Authentication
 	Username string `json:"username,omitempty"`
 	Password string `json:"password,omitempty"`
-	
+
 	// TLS Configuration
 	TLS      bool   `json:"tls,omitempty"`
 	CertFile string `json:"cert_file,omitempty"`
@@ -64,19 +64,19 @@ func NewEtcdEventSource(config *EtcdConfig) (*EtcdEventSource, error) {
 	if config == nil {
 		return nil, fmt.Errorf("config cannot be nil")
 	}
-	
+
 	if len(config.Endpoints) == 0 {
 		return nil, fmt.Errorf("at least one etcd endpoint must be specified")
 	}
-	
+
 	if config.KeyPath == "" {
 		return nil, fmt.Errorf("key path must be specified")
 	}
-	
+
 	if config.Timeout <= 0 {
 		config.Timeout = 5 * time.Second
 	}
-	
+
 	return &EtcdEventSource{
 		config:  config,
 		healthy: false,
@@ -88,14 +88,14 @@ func (e *EtcdEventSource) Start(ctx context.Context, handler EventHandler) error
 	if handler == nil {
 		return fmt.Errorf("event handler cannot be nil")
 	}
-	
+
 	e.mutex.Lock()
 	defer e.mutex.Unlock()
-	
+
 	if e.client != nil {
 		return fmt.Errorf("event source already started")
 	}
-	
+
 	// Create etcd client
 	clientConfig := clientv3.Config{
 		Endpoints:   e.config.Endpoints,
@@ -103,13 +103,13 @@ func (e *EtcdEventSource) Start(ctx context.Context, handler EventHandler) error
 		Username:    e.config.Username,
 		Password:    e.config.Password,
 	}
-	
+
 	// Configure TLS if enabled
 	if e.config.TLS {
 		tlsConfig := &tls.Config{
 			InsecureSkipVerify: false,
 		}
-		
+
 		if e.config.CertFile != "" && e.config.KeyFile != "" {
 			cert, err := tls.LoadX509KeyPair(e.config.CertFile, e.config.KeyFile)
 			if err != nil {
@@ -117,28 +117,28 @@ func (e *EtcdEventSource) Start(ctx context.Context, handler EventHandler) error
 			}
 			tlsConfig.Certificates = []tls.Certificate{cert}
 		}
-		
+
 		clientConfig.TLS = tlsConfig
 	}
-	
+
 	client, err := clientv3.New(clientConfig)
 	if err != nil {
 		return fmt.Errorf("failed to create etcd client: %w", err)
 	}
-	
+
 	e.client = client
 	e.handler = handler
 	e.ctx, e.cancel = context.WithCancel(ctx)
-	
+
 	// Check initial state
 	if err := e.checkInitialState(); err != nil {
 		e.cleanup()
 		return fmt.Errorf("failed to check initial state: %w", err)
 	}
-	
+
 	// Start watching for changes
 	go e.watchForChanges()
-	
+
 	e.healthy = true
 	return nil
 }
@@ -147,7 +147,7 @@ func (e *EtcdEventSource) Start(ctx context.Context, handler EventHandler) error
 func (e *EtcdEventSource) Stop() error {
 	e.mutex.Lock()
 	defer e.mutex.Unlock()
-	
+
 	e.cleanup()
 	return nil
 }
@@ -155,17 +155,17 @@ func (e *EtcdEventSource) Stop() error {
 // cleanup performs internal cleanup (must be called with mutex held)
 func (e *EtcdEventSource) cleanup() {
 	e.healthy = false
-	
+
 	if e.cancel != nil {
 		e.cancel()
 		e.cancel = nil
 	}
-	
+
 	if e.client != nil {
 		e.client.Close()
 		e.client = nil
 	}
-	
+
 	e.handler = nil
 }
 
@@ -191,24 +191,24 @@ func (e *EtcdEventSource) SetMaintenance(ctx context.Context, enabled bool) erro
 	e.mutex.RLock()
 	client := e.client
 	e.mutex.RUnlock()
-	
+
 	if client == nil {
 		return fmt.Errorf("event source not started")
 	}
-	
+
 	ctx, cancel := context.WithTimeout(ctx, e.config.Timeout)
 	defer cancel()
-	
+
 	value := "false"
 	if enabled {
 		value = "true"
 	}
-	
+
 	_, err := client.Put(ctx, e.config.KeyPath, value)
 	if err != nil {
 		return fmt.Errorf("failed to set maintenance state: %w", err)
 	}
-	
+
 	return nil
 }
 
@@ -217,23 +217,23 @@ func (e *EtcdEventSource) GetMaintenance(ctx context.Context) (bool, error) {
 	e.mutex.RLock()
 	client := e.client
 	e.mutex.RUnlock()
-	
+
 	if client == nil {
 		return false, fmt.Errorf("event source not started")
 	}
-	
+
 	ctx, cancel := context.WithTimeout(ctx, e.config.Timeout)
 	defer cancel()
-	
+
 	resp, err := client.Get(ctx, e.config.KeyPath)
 	if err != nil {
 		return false, fmt.Errorf("failed to get maintenance state: %w", err)
 	}
-	
+
 	if len(resp.Kvs) == 0 {
 		return false, nil // Key doesn't exist, not in maintenance
 	}
-	
+
 	return e.parseMaintenanceValue(string(resp.Kvs[0].Value)), nil
 }
 
@@ -241,24 +241,24 @@ func (e *EtcdEventSource) GetMaintenance(ctx context.Context) (bool, error) {
 func (e *EtcdEventSource) checkInitialState() error {
 	ctx, cancel := context.WithTimeout(e.ctx, e.config.Timeout)
 	defer cancel()
-	
+
 	resp, err := e.client.Get(ctx, e.config.KeyPath)
 	if err != nil {
 		return fmt.Errorf("failed to get initial key value: %w", err)
 	}
-	
+
 	// Determine initial state
 	enabled := false
 	if len(resp.Kvs) > 0 {
 		enabled = e.parseMaintenanceValue(string(resp.Kvs[0].Value))
 	}
-	
+
 	// Create and send initial event
 	eventType := MaintenanceDisabled
 	if enabled {
 		eventType = MaintenanceEnabled
 	}
-	
+
 	event := MaintenanceEvent{
 		Type:      eventType,
 		Key:       e.config.KeyPath,
@@ -268,14 +268,14 @@ func (e *EtcdEventSource) checkInitialState() error {
 			"initial": true,
 		},
 	}
-	
+
 	return e.handler(event)
 }
 
 // watchForChanges watches the etcd key for changes
 func (e *EtcdEventSource) watchForChanges() {
 	watchChan := e.client.Watch(e.ctx, e.config.KeyPath)
-	
+
 	for {
 		select {
 		case <-e.ctx.Done():
@@ -286,16 +286,16 @@ func (e *EtcdEventSource) watchForChanges() {
 				e.mutex.Lock()
 				e.healthy = false
 				e.mutex.Unlock()
-				
+
 				// Simple backoff - in production might want exponential backoff
 				time.Sleep(time.Second)
 				continue
 			}
-			
+
 			e.mutex.Lock()
 			e.healthy = true
 			e.mutex.Unlock()
-			
+
 			for _, etcdEvent := range watchResp.Events {
 				if err := e.processEtcdEvent(etcdEvent); err != nil {
 					// Log error but continue processing
@@ -311,7 +311,7 @@ func (e *EtcdEventSource) watchForChanges() {
 func (e *EtcdEventSource) processEtcdEvent(etcdEvent *clientv3.Event) error {
 	var eventType EventType
 	var enabled bool
-	
+
 	switch etcdEvent.Type {
 	case clientv3.EventTypePut:
 		enabled = e.parseMaintenanceValue(string(etcdEvent.Kv.Value))
@@ -320,13 +320,13 @@ func (e *EtcdEventSource) processEtcdEvent(etcdEvent *clientv3.Event) error {
 	default:
 		return nil // Unknown event type, ignore
 	}
-	
+
 	if enabled {
 		eventType = MaintenanceEnabled
 	} else {
 		eventType = MaintenanceDisabled
 	}
-	
+
 	event := MaintenanceEvent{
 		Type:      eventType,
 		Key:       e.config.KeyPath,
@@ -337,7 +337,7 @@ func (e *EtcdEventSource) processEtcdEvent(etcdEvent *clientv3.Event) error {
 			"etcd_revision":   etcdEvent.Kv.ModRevision,
 		},
 	}
-	
+
 	return e.handler(event)
 }
 

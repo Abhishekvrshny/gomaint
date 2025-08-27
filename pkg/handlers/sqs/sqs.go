@@ -8,10 +8,10 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/abhishekvarshney/gomaint/pkg/handlers"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
 	"github.com/aws/aws-sdk-go-v2/service/sqs/types"
-	"github.com/abhishekvarshney/gomaint/pkg/handlers"
 )
 
 // SQSClient interface allows for easier testing and mocking
@@ -28,34 +28,34 @@ type MessageProcessor interface {
 
 // Config holds the configuration for the SQS handler
 type Config struct {
-	QueueURL                string
-	MaxNumberOfMessages     int32
-	WaitTimeSeconds         int32
+	QueueURL                 string
+	MaxNumberOfMessages      int32
+	WaitTimeSeconds          int32
 	VisibilityTimeoutSeconds int32
-	DrainTimeout            time.Duration
-	PollInterval            time.Duration
+	DrainTimeout             time.Duration
+	PollInterval             time.Duration
 }
 
 // DefaultConfig returns a default configuration
 func DefaultConfig(queueURL string) *Config {
 	return &Config{
-		QueueURL:                queueURL,
-		MaxNumberOfMessages:     10,
-		WaitTimeSeconds:         20,
+		QueueURL:                 queueURL,
+		MaxNumberOfMessages:      10,
+		WaitTimeSeconds:          20,
 		VisibilityTimeoutSeconds: 30,
-		DrainTimeout:            30 * time.Second,
-		PollInterval:            1 * time.Second,
+		DrainTimeout:             30 * time.Second,
+		PollInterval:             1 * time.Second,
 	}
 }
 
 // Handler implements the Handler interface for SQS message processing
 type Handler struct {
 	*handlers.BaseHandler
-	client      SQSClient
-	config      *Config
-	processor   MessageProcessor
-	logger      *log.Logger
-	
+	client    SQSClient
+	config    *Config
+	processor MessageProcessor
+	logger    *log.Logger
+
 	// State management
 	inMaintenance int32 // atomic boolean
 	stopChan      chan struct{}
@@ -64,20 +64,20 @@ type Handler struct {
 	isRunning     bool
 	ctx           context.Context
 	cancel        context.CancelFunc
-	
+
 	// Statistics
 	stats Stats
 }
 
 // Stats holds statistics for the SQS handler
 type Stats struct {
-	MessagesReceived   int64
-	MessagesProcessed  int64
-	MessagesFailed     int64
-	MessagesInFlight   int64
-	LastMessageTime    time.Time
-	ProcessingErrors   []string
-	mu                 sync.RWMutex
+	MessagesReceived  int64
+	MessagesProcessed int64
+	MessagesFailed    int64
+	MessagesInFlight  int64
+	LastMessageTime   time.Time
+	ProcessingErrors  []string
+	mu                sync.RWMutex
 }
 
 // NewSQSHandler creates a new SQS handler
@@ -85,7 +85,7 @@ func NewSQSHandler(client SQSClient, config *Config, processor MessageProcessor,
 	if logger == nil {
 		logger = log.Default()
 	}
-	
+
 	return &Handler{
 		BaseHandler: handlers.NewBaseHandler("sqs"),
 		client:      client,
@@ -100,27 +100,27 @@ func NewSQSHandler(client SQSClient, config *Config, processor MessageProcessor,
 func (h *Handler) Start(ctx context.Context) error {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	
+
 	if h.isRunning {
 		h.logger.Println("SQS Handler: Already running, skipping start")
 		return nil
 	}
-	
+
 	h.logger.Printf("SQS Handler: Starting message processing for queue: %s", h.config.QueueURL)
-	
+
 	// Create a new context for the handler that's independent of the passed context
 	h.ctx, h.cancel = context.WithCancel(context.Background())
-	
+
 	// Create a new stop channel if needed
 	if h.stopChan == nil {
 		h.stopChan = make(chan struct{})
 	}
-	
+
 	// Start the message processing goroutine
 	h.wg.Add(1)
 	h.isRunning = true
 	go h.messageLoop(h.ctx)
-	
+
 	return nil
 }
 
@@ -128,32 +128,32 @@ func (h *Handler) Start(ctx context.Context) error {
 func (h *Handler) Stop() error {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	
+
 	if !h.isRunning {
 		h.logger.Println("SQS Handler: Not running, skipping stop")
 		return nil
 	}
-	
+
 	h.logger.Println("SQS Handler: Stopping message processing")
-	
+
 	// Cancel the handler context
 	if h.cancel != nil {
 		h.cancel()
 	}
-	
+
 	close(h.stopChan)
 	h.isRunning = false
-	
+
 	// Wait for message loop to finish (unlock mutex first)
 	h.mu.Unlock()
 	h.wg.Wait()
 	h.mu.Lock()
-	
+
 	// Reset stop channel for potential restart
 	h.stopChan = nil
 	h.ctx = nil
 	h.cancel = nil
-	
+
 	h.logger.Println("SQS Handler: Message processing stopped")
 	return nil
 }
@@ -163,19 +163,19 @@ func (h *Handler) OnMaintenanceStart(ctx context.Context) error {
 	h.logger.Println("SQS Handler: Entering maintenance mode - draining messages")
 	atomic.StoreInt32(&h.inMaintenance, 1)
 	h.SetState(handlers.StateMaintenance)
-	
+
 	// Stop the handler to prevent new messages from being received
 	if err := h.Stop(); err != nil {
 		h.logger.Printf("SQS Handler: Error stopping during maintenance: %v", err)
 	}
-	
+
 	// Wait for in-flight messages to complete or timeout
 	done := make(chan struct{})
 	go func() {
 		h.wg.Wait()
 		close(done)
 	}()
-	
+
 	select {
 	case <-done:
 		h.logger.Println("SQS Handler: All messages drained successfully")
@@ -194,12 +194,12 @@ func (h *Handler) OnMaintenanceEnd(ctx context.Context) error {
 	h.logger.Println("SQS Handler: Exiting maintenance mode - resuming message processing")
 	atomic.StoreInt32(&h.inMaintenance, 0)
 	h.SetState(handlers.StateNormal)
-	
+
 	// Restart the handler if it was running
 	h.mu.Lock()
 	wasRunning := h.isRunning
 	h.mu.Unlock()
-	
+
 	if !wasRunning {
 		// Start the handler with a fresh context
 		if err := h.Start(ctx); err != nil {
@@ -210,7 +210,7 @@ func (h *Handler) OnMaintenanceEnd(ctx context.Context) error {
 	} else {
 		h.logger.Println("SQS Handler: Message processing will continue automatically")
 	}
-	
+
 	return nil
 }
 
@@ -220,23 +220,23 @@ func (h *Handler) IsHealthy() bool {
 	if !h.BaseHandler.IsHealthy() {
 		return false
 	}
-	
+
 	// Check SQS connectivity by getting queue attributes
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	
+
 	_, err := h.client.GetQueueAttributes(ctx, &sqs.GetQueueAttributesInput{
 		QueueUrl: aws.String(h.config.QueueURL),
 		AttributeNames: []types.QueueAttributeName{
 			types.QueueAttributeNameApproximateNumberOfMessages,
 		},
 	})
-	
+
 	if err != nil {
 		h.logger.Printf("SQS Handler: Health check failed: %v", err)
 		return false
 	}
-	
+
 	return true
 }
 
@@ -244,20 +244,20 @@ func (h *Handler) IsHealthy() bool {
 func (h *Handler) GetStats() map[string]interface{} {
 	h.stats.mu.RLock()
 	defer h.stats.mu.RUnlock()
-	
+
 	stats := map[string]interface{}{
-		"handler_name":        h.Name(),
-		"handler_state":       h.State().String(),
-		"queue_url":           h.config.QueueURL,
-		"in_maintenance":      atomic.LoadInt32(&h.inMaintenance) == 1,
-		"messages_received":   h.stats.MessagesReceived,
-		"messages_processed":  h.stats.MessagesProcessed,
-		"messages_failed":     h.stats.MessagesFailed,
-		"messages_in_flight":  h.stats.MessagesInFlight,
-		"last_message_time":   h.stats.LastMessageTime,
-		"drain_timeout":       h.config.DrainTimeout.String(),
+		"handler_name":       h.Name(),
+		"handler_state":      h.State().String(),
+		"queue_url":          h.config.QueueURL,
+		"in_maintenance":     atomic.LoadInt32(&h.inMaintenance) == 1,
+		"messages_received":  h.stats.MessagesReceived,
+		"messages_processed": h.stats.MessagesProcessed,
+		"messages_failed":    h.stats.MessagesFailed,
+		"messages_in_flight": h.stats.MessagesInFlight,
+		"last_message_time":  h.stats.LastMessageTime,
+		"drain_timeout":      h.config.DrainTimeout.String(),
 	}
-	
+
 	// Include recent errors if any
 	if len(h.stats.ProcessingErrors) > 0 {
 		// Show last 5 errors
@@ -268,7 +268,7 @@ func (h *Handler) GetStats() map[string]interface{} {
 		}
 		stats["recent_errors"] = h.stats.ProcessingErrors[startIdx:]
 	}
-	
+
 	return stats
 }
 
@@ -280,12 +280,12 @@ func (h *Handler) messageLoop(ctx context.Context) {
 		h.isRunning = false
 		h.mu.Unlock()
 	}()
-	
+
 	ticker := time.NewTicker(h.config.PollInterval)
 	defer ticker.Stop()
-	
+
 	h.logger.Println("SQS Handler: Message loop started")
-	
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -300,7 +300,7 @@ func (h *Handler) messageLoop(ctx context.Context) {
 				// Don't log every poll interval to avoid spam
 				continue
 			}
-			
+
 			// Receive messages from SQS
 			if err := h.receiveAndProcessMessages(ctx); err != nil {
 				h.logger.Printf("SQS Handler: Error receiving messages: %v", err)
@@ -319,26 +319,26 @@ func (h *Handler) receiveAndProcessMessages(ctx context.Context) error {
 		WaitTimeSeconds:     h.config.WaitTimeSeconds,
 		VisibilityTimeout:   h.config.VisibilityTimeoutSeconds,
 	})
-	
+
 	if err != nil {
 		return fmt.Errorf("failed to receive messages: %w", err)
 	}
-	
+
 	// Process each message concurrently
 	for _, message := range result.Messages {
 		// Track message reception
 		atomic.AddInt64(&h.stats.MessagesReceived, 1)
 		atomic.AddInt64(&h.stats.MessagesInFlight, 1)
-		
+
 		h.stats.mu.Lock()
 		h.stats.LastMessageTime = time.Now()
 		h.stats.mu.Unlock()
-		
+
 		// Process message in goroutine
 		h.wg.Add(1)
 		go h.processMessage(ctx, message)
 	}
-	
+
 	return nil
 }
 
@@ -346,33 +346,33 @@ func (h *Handler) receiveAndProcessMessages(ctx context.Context) error {
 func (h *Handler) processMessage(ctx context.Context, message types.Message) {
 	defer h.wg.Done()
 	defer atomic.AddInt64(&h.stats.MessagesInFlight, -1)
-	
+
 	// Process the message
 	if err := h.processor.ProcessMessage(ctx, message); err != nil {
-		h.logger.Printf("SQS Handler: Failed to process message %s: %v", 
+		h.logger.Printf("SQS Handler: Failed to process message %s: %v",
 			aws.ToString(message.MessageId), err)
 		atomic.AddInt64(&h.stats.MessagesFailed, 1)
-		h.addProcessingError(fmt.Sprintf("MessageId %s: %v", 
+		h.addProcessingError(fmt.Sprintf("MessageId %s: %v",
 			aws.ToString(message.MessageId), err))
 		return
 	}
-	
+
 	// Delete message from queue on successful processing
 	_, err := h.client.DeleteMessage(ctx, &sqs.DeleteMessageInput{
 		QueueUrl:      aws.String(h.config.QueueURL),
 		ReceiptHandle: message.ReceiptHandle,
 	})
-	
+
 	if err != nil {
-		h.logger.Printf("SQS Handler: Failed to delete message %s: %v", 
+		h.logger.Printf("SQS Handler: Failed to delete message %s: %v",
 			aws.ToString(message.MessageId), err)
-		h.addProcessingError(fmt.Sprintf("Delete failed for MessageId %s: %v", 
+		h.addProcessingError(fmt.Sprintf("Delete failed for MessageId %s: %v",
 			aws.ToString(message.MessageId), err))
 		return
 	}
-	
+
 	atomic.AddInt64(&h.stats.MessagesProcessed, 1)
-	h.logger.Printf("SQS Handler: Successfully processed message %s", 
+	h.logger.Printf("SQS Handler: Successfully processed message %s",
 		aws.ToString(message.MessageId))
 }
 
@@ -380,10 +380,10 @@ func (h *Handler) processMessage(ctx context.Context, message types.Message) {
 func (h *Handler) addProcessingError(errorMsg string) {
 	h.stats.mu.Lock()
 	defer h.stats.mu.Unlock()
-	
-	h.stats.ProcessingErrors = append(h.stats.ProcessingErrors, 
+
+	h.stats.ProcessingErrors = append(h.stats.ProcessingErrors,
 		fmt.Sprintf("%s: %s", time.Now().Format(time.RFC3339), errorMsg))
-	
+
 	// Keep only last 10 errors
 	if len(h.stats.ProcessingErrors) > 10 {
 		h.stats.ProcessingErrors = h.stats.ProcessingErrors[1:]

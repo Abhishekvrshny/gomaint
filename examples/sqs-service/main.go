@@ -18,10 +18,10 @@ import (
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
 	"github.com/aws/aws-sdk-go-v2/service/sqs/types"
-	
+
 	"github.com/abhishekvarshney/gomaint"
 	sqsHandler "github.com/abhishekvarshney/gomaint/pkg/handlers/sqs"
-	)
+)
 
 // MessageProcessor implements the SQS message processing logic
 type MessageProcessor struct {
@@ -32,16 +32,16 @@ type MessageProcessor struct {
 func (mp *MessageProcessor) ProcessMessage(ctx context.Context, message types.Message) error {
 	messageBody := aws.ToString(message.Body)
 	messageId := aws.ToString(message.MessageId)
-	
+
 	mp.logger.Printf("Processing message %s: %s", messageId, messageBody)
-	
+
 	// Simulate processing time (1-3 seconds)
 	processingTime := time.Duration(1+rand.Intn(3)) * time.Second
-	
+
 	// Check for context cancellation during processing
 	timer := time.NewTimer(processingTime)
 	defer timer.Stop()
-	
+
 	select {
 	case <-timer.C:
 		// Processing completed successfully
@@ -55,11 +55,11 @@ func (mp *MessageProcessor) ProcessMessage(ctx context.Context, message types.Me
 
 // App holds the application dependencies
 type App struct {
-	sqsClient   *sqs.Client
-	sqsHandler  *sqsHandler.Handler
-	manager     *gomaint.Manager
-	server      *http.Server
-	queueURL    string
+	sqsClient  *sqs.Client
+	sqsHandler *sqsHandler.Handler
+	manager    *gomaint.Manager
+	server     *http.Server
+	queueURL   string
 }
 
 func main() {
@@ -154,10 +154,10 @@ func setupApp() (*App, error) {
 	// Setup HTTP server
 	mux := http.NewServeMux()
 	app := &App{
-		sqsClient:   sqsClient,
-		sqsHandler:  handler,
-		manager:     mgr,
-		queueURL:    queueURL,
+		sqsClient:  sqsClient,
+		sqsHandler: handler,
+		manager:    mgr,
+		queueURL:   queueURL,
 		server: &http.Server{
 			Addr:    ":8080",
 			Handler: mux,
@@ -192,7 +192,7 @@ func (app *App) initializeQueue(ctx context.Context) error {
 	_, err := app.sqsClient.CreateQueue(ctx, &sqs.CreateQueueInput{
 		QueueName: aws.String(queueName),
 		Attributes: map[string]string{
-			"VisibilityTimeout": "30",
+			"VisibilityTimeout":      "30",
 			"MessageRetentionPeriod": "1209600", // 14 days
 		},
 	})
@@ -216,13 +216,13 @@ func (app *App) sendInitialMessages(ctx context.Context) error {
 			QueueUrl:    aws.String(app.queueURL),
 			MessageBody: aws.String(message),
 		})
-		
+
 		if err != nil {
 			return fmt.Errorf("failed to send initial message %d: %w", i, err)
 		}
 		log.Printf("Sent initial message %d", i)
 	}
-	
+
 	log.Println("Successfully sent initial test messages")
 	return nil
 }
