@@ -258,11 +258,6 @@ func NewSaramaConsumerGroupBuilder(brokers []string, consumerGroup string) *Sara
 	}
 }
 
-// WithConfig sets a custom sarama.Config
-func (b *SaramaConsumerGroupBuilder) WithConfig(config *sarama.Config) *SaramaConsumerGroupBuilder {
-	b.config = config
-	return b
-}
 
 // WithOffsetInitial sets the initial offset strategy
 func (b *SaramaConsumerGroupBuilder) WithOffsetInitial(offset int64) *SaramaConsumerGroupBuilder {

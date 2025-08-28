@@ -55,19 +55,6 @@ func (m *Manager) RegisterHandler(handler handlers.Handler) error {
 	return nil
 }
 
-// UnregisterHandler removes a handler from the manager
-func (m *Manager) UnregisterHandler(name string) error {
-	m.handlersMux.Lock()
-	defer m.handlersMux.Unlock()
-
-	if _, exists := m.handlers[name]; !exists {
-		return fmt.Errorf("handler with name '%s' not found", name)
-	}
-
-	delete(m.handlers, name)
-	return nil
-}
-
 // GetHandler returns a handler by name
 func (m *Manager) GetHandler(name string) (handlers.Handler, bool) {
 	m.handlersMux.RLock()
@@ -75,18 +62,6 @@ func (m *Manager) GetHandler(name string) (handlers.Handler, bool) {
 
 	handler, exists := m.handlers[name]
 	return handler, exists
-}
-
-// ListHandlers returns a list of all registered handler names
-func (m *Manager) ListHandlers() []string {
-	m.handlersMux.RLock()
-	defer m.handlersMux.RUnlock()
-
-	names := make([]string, 0, len(m.handlers))
-	for name := range m.handlers {
-		names = append(names, name)
-	}
-	return names
 }
 
 // Start begins monitoring for maintenance state changes
@@ -157,49 +132,6 @@ func (m *Manager) IsInMaintenance() bool {
 	return m.inMaintenance
 }
 
-// SetMaintenance manually sets the maintenance mode (updates the event source)
-func (m *Manager) SetMaintenance(ctx context.Context, enabled bool) error {
-	if m.eventSource == nil {
-		return fmt.Errorf("event source not configured")
-	}
-
-	return m.eventSource.SetMaintenance(ctx, enabled)
-}
-
-// GetMaintenance gets the current maintenance mode from the event source
-func (m *Manager) GetMaintenance(ctx context.Context) (bool, error) {
-	if m.eventSource == nil {
-		return false, fmt.Errorf("event source not configured")
-	}
-
-	return m.eventSource.GetMaintenance(ctx)
-}
-
-// IsHealthy returns true if the event source and all handlers are healthy
-func (m *Manager) IsHealthy() bool {
-	// Check event source health
-	if m.eventSource != nil && !m.eventSource.IsHealthy() {
-		return false
-	}
-
-	// Check all handlers
-	m.handlersMux.RLock()
-	defer m.handlersMux.RUnlock()
-
-	for _, handler := range m.handlers {
-		if !handler.IsHealthy() {
-			return false
-		}
-	}
-
-	return true
-}
-
-// GetEventSource returns the event source for advanced usage
-func (m *Manager) GetEventSource() eventsource.EventSource {
-	return m.eventSource
-}
-
 // GetHandlerHealth returns the health status of all handlers
 func (m *Manager) GetHandlerHealth() map[string]bool {
 	m.handlersMux.RLock()
@@ -210,26 +142,6 @@ func (m *Manager) GetHandlerHealth() map[string]bool {
 		health[name] = handler.IsHealthy()
 	}
 	return health
-}
-
-// WaitForMaintenance waits for the service to enter or exit maintenance mode
-func (m *Manager) WaitForMaintenance(ctx context.Context, enabled bool, timeout time.Duration) error {
-	ctx, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
-
-	ticker := time.NewTicker(100 * time.Millisecond)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case <-ticker.C:
-			if m.IsInMaintenance() == enabled {
-				return nil
-			}
-		}
-	}
 }
 
 // handleMaintenanceEvent handles maintenance events from the event source

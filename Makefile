@@ -22,7 +22,7 @@ PKG_DIR=./pkg
 GOIMPORTS=$(GOPATH)/bin/goimports
 STATICCHECK=$(GOPATH)/bin/staticcheck
 
-.PHONY: all build clean test coverage deps install-tools goimports-check goimports-fix lint-check staticcheck help
+.PHONY: all build clean clean-all test coverage deps install-tools goimports-check goimports-fix lint-check staticcheck help
 
 # Default target
 all: test build
@@ -40,6 +40,12 @@ clean:
 	$(GOCLEAN)
 	rm -f $(BINARY_NAME)
 	rm -f $(BINARY_UNIX)
+
+# Clean all generated files including binaries, coverage, and example builds
+clean-all: clean clean-examples
+	@echo "Cleaning all generated files..."
+	rm -f main client coverage.out coverage.html
+	@echo "All generated files cleaned"
 
 # Run tests
 test:
@@ -182,6 +188,7 @@ help:
 	@echo "  build            - Build the project"
 	@echo "  build-linux      - Cross-compile for Linux"
 	@echo "  clean            - Clean build artifacts"
+	@echo "  clean-all        - Clean all generated files (binaries, coverage, examples)"
 	@echo "  test             - Run tests"
 	@echo "  test-race        - Run tests with race detection"
 	@echo "  coverage         - Run tests with coverage report"

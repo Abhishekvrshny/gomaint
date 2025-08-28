@@ -39,10 +39,6 @@ func NewHTTPHandler(server *http.Server, drainTimeout time.Duration) *Handler {
 	return h
 }
 
-// NewHandler creates a new HTTP handler (deprecated: use NewHTTPHandler)
-func NewHandler(server *http.Server, drainTimeout time.Duration) *Handler {
-	return NewHTTPHandler(server, drainTimeout)
-}
 
 func (h *Handler) SkipPaths(paths ...interface{}) {
 	h.skipPaths.Add(paths...)

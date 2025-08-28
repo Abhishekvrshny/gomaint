@@ -43,3 +43,23 @@ temp/
 # Build artifacts
 dist/
 build/
+
+# Project binaries
+main
+client
+gomaint
+gomaint_unix
+
+# Example service binaries
+examples/*/gin-service
+examples/*/gorm-service
+examples/*/grpc-service
+examples/*/http-service
+examples/*/kafka-confluent-service
+examples/*/kafka-sarama-service
+examples/*/sqs-service
+examples/*/xorm-service
+
+# Coverage and test artifacts
+coverage.out
+coverage.html

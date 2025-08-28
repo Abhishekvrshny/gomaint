@@ -57,10 +57,6 @@ func NewGRPCHandler(listener net.Listener, drainTimeout time.Duration) *Handler 
 	return h
 }
 
-// NewHandler creates a new gRPC handler (deprecated: use NewGRPCHandler)
-func NewHandler(listener net.Listener, drainTimeout time.Duration) *Handler {
-	return NewGRPCHandler(listener, drainTimeout)
-}
 
 // GetServer returns the gRPC server instance for service registration
 func (h *Handler) GetServer() *grpc.Server {
@@ -208,56 +204,3 @@ func (h *Handler) Stop(ctx context.Context) error {
 	}
 }
 
-// IsInMaintenance returns true if the handler is in maintenance mode
-func (h *Handler) IsInMaintenance() bool {
-	return atomic.LoadInt32(&h.inMaintenance) == 1
-}
-
-// GetActiveRequestCount returns the number of active requests
-func (h *Handler) GetActiveRequestCount() int {
-	// This is an approximation - we can't directly count WaitGroup members
-	// In a production system, you might want to implement a proper counter
-	if h.IsInMaintenance() {
-		return 0 // When in maintenance, we're draining
-	}
-	return 1 // Simplified for demo purposes
-}
-
-// GetStats returns handler statistics
-func (h *Handler) GetStats() map[string]interface{} {
-	addr := "unknown"
-	if h.listener != nil {
-		addr = h.listener.Addr().String()
-	}
-
-	return map[string]interface{}{
-		"handler_name":   h.Name(),
-		"handler_state":  h.State().String(),
-		"in_maintenance": h.IsInMaintenance(),
-		"drain_timeout":  h.drainTimeout.String(),
-		"server_addr":    addr,
-		"health_status":  h.getHealthStatus(),
-	}
-}
-
-// getHealthStatus returns the current health status
-func (h *Handler) getHealthStatus() string {
-	if h.IsInMaintenance() {
-		return "NOT_SERVING"
-	}
-	return "SERVING"
-}
-
-// GetHealthServer returns the health server for external health checks
-func (h *Handler) GetHealthServer() *health.Server {
-	return h.healthServer
-}
-
-// SetServiceHealth sets the health status for a specific service
-func (h *Handler) SetServiceHealth(service string, serving bool) {
-	status := grpc_health_v1.HealthCheckResponse_SERVING
-	if !serving {
-		status = grpc_health_v1.HealthCheckResponse_NOT_SERVING
-	}
-	h.healthServer.SetServingStatus(service, status)
-}

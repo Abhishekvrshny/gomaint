@@ -238,16 +238,3 @@ func (h *Handler) GetStats() map[string]interface{} {
 }
 
 
-// addProcessingError adds an error to the processing errors list (keeps last 10)
-func (h *Handler) addProcessingError(errorMsg string) {
-	h.stats.mu.Lock()
-	defer h.stats.mu.Unlock()
-
-	h.stats.ProcessingErrors = append(h.stats.ProcessingErrors,
-		fmt.Sprintf("%s: %s", time.Now().Format(time.RFC3339), errorMsg))
-
-	// Keep only last 10 errors
-	if len(h.stats.ProcessingErrors) > 10 {
-		h.stats.ProcessingErrors = h.stats.ProcessingErrors[1:]
-	}
-}

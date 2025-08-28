@@ -234,11 +234,6 @@ func NewConfluentConsumerBuilder(brokers, groupID string) *ConfluentConsumerBuil
 	}
 }
 
-// WithConfig sets a configuration value
-func (b *ConfluentConsumerBuilder) WithConfig(key, value string) *ConfluentConsumerBuilder {
-	b.config[key] = value
-	return b
-}
 
 // WithAutoOffsetReset sets the auto.offset.reset strategy
 func (b *ConfluentConsumerBuilder) WithAutoOffsetReset(strategy string) *ConfluentConsumerBuilder {
@@ -252,11 +247,6 @@ func (b *ConfluentConsumerBuilder) WithSessionTimeout(timeout string) *Confluent
 	return b
 }
 
-// WithEnableAutoCommit sets whether to enable auto commit
-func (b *ConfluentConsumerBuilder) WithEnableAutoCommit(enable bool) *ConfluentConsumerBuilder {
-	b.config["enable.auto.commit"] = enable
-	return b
-}
 
 // Build creates the kafka.Consumer
 func (b *ConfluentConsumerBuilder) Build() (*kafka.Consumer, error) {
