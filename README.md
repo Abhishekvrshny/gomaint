@@ -350,7 +350,7 @@ This runs linting and tests to ensure code quality.
 
 ## Requirements
 
-- Go 1.21 or later
+- Go 1.23 or later
 - etcd v3.6+ for the etcd server
 
 ## Dependencies
