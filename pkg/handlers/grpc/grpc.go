@@ -13,6 +13,7 @@ import (
 	"google.golang.org/grpc/reflection"
 
 	"github.com/abhishekvarshney/gomaint/pkg/handlers"
+	"github.com/abhishekvarshney/gomaint/pkg/set"
 )
 
 // Handler handles gRPC server maintenance mode
@@ -21,6 +22,7 @@ type Handler struct {
 	server        *grpc.Server
 	listener      net.Listener
 	healthServer  *health.Server
+	skipMethods   *set.Set
 	drainTimeout  time.Duration
 	inMaintenance int32 // atomic boolean
 	wg            sync.WaitGroup
@@ -45,6 +47,7 @@ func NewGRPCHandler(listener net.Listener, drainTimeout time.Duration) *Handler 
 		server:       server,
 		listener:     listener,
 		healthServer: healthServer,
+		skipMethods:  set.NewSet(),
 		drainTimeout: drainTimeout,
 	}
 
@@ -57,6 +60,12 @@ func NewGRPCHandler(listener net.Listener, drainTimeout time.Duration) *Handler 
 	return h
 }
 
+
+// SkipMethods adds gRPC method names that should skip maintenance mode logic
+// Method names should be in the format "/service.ServiceName/MethodName"
+func (h *Handler) SkipMethods(methods ...interface{}) {
+	h.skipMethods.Add(methods...)
+}
 
 // GetServer returns the gRPC server instance for service registration
 func (h *Handler) GetServer() *grpc.Server {
@@ -121,9 +130,10 @@ func (h *Handler) wrapUnaryInterceptor(
 	info *grpc.UnaryServerInfo,
 	handler grpc.UnaryHandler,
 ) (interface{}, error) {
-	// Skip maintenance mode logic for health checks
+	// Skip maintenance mode logic for health checks and configured methods
 	if info.FullMethod == "/grpc.health.v1.Health/Check" ||
-		info.FullMethod == "/grpc.health.v1.Health/Watch" {
+		info.FullMethod == "/grpc.health.v1.Health/Watch" ||
+		h.skipMethods.Contains(info.FullMethod) {
 		return handler(ctx, req)
 	}
 
@@ -147,8 +157,9 @@ func (h *Handler) wrapStreamInterceptor(
 	info *grpc.StreamServerInfo,
 	handler grpc.StreamHandler,
 ) error {
-	// Skip maintenance mode logic for health checks
-	if info.FullMethod == "/grpc.health.v1.Health/Watch" {
+	// Skip maintenance mode logic for health checks and configured methods
+	if info.FullMethod == "/grpc.health.v1.Health/Watch" ||
+		h.skipMethods.Contains(info.FullMethod) {
 		return handler(srv, stream)
 	}
 

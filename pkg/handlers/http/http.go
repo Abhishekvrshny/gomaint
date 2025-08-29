@@ -40,6 +40,7 @@ func NewHTTPHandler(server *http.Server, drainTimeout time.Duration) *Handler {
 }
 
 
+// SkipPaths adds paths that should skip maintenance mode logic
 func (h *Handler) SkipPaths(paths ...interface{}) {
 	h.skipPaths.Add(paths...)
 }
