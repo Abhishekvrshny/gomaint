@@ -26,7 +26,6 @@ type Handler struct {
 	// State management
 	inMaintenance int32 // atomic boolean
 	stopChan      chan struct{}
-	wg            sync.WaitGroup
 	mu            sync.RWMutex
 	isRunning     bool
 	ctx           context.Context

@@ -109,14 +109,7 @@ func setupApp() (*App, error) {
 		config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(
 			"test", "test", "", // LocalStack accepts any credentials
 		)),
-		config.WithEndpointResolverWithOptions(aws.EndpointResolverWithOptionsFunc(
-			func(service, region string, options ...interface{}) (aws.Endpoint, error) {
-				return aws.Endpoint{
-					URL:           awsEndpoint,
-					SigningRegion: awsRegion,
-				}, nil
-			},
-		)),
+		config.WithBaseEndpoint(awsEndpoint),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load AWS config: %w", err)

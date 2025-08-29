@@ -18,15 +18,10 @@ func main() {
 		serverAddr = "localhost:50051"
 	}
 
-	// Create connection with timeout
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
-
-	conn, err := grpc.DialContext(
-		ctx,
+	// Create connection
+	conn, err := grpc.NewClient(
 		serverAddr,
 		grpc.WithTransportCredentials(insecure.NewCredentials()),
-		grpc.WithBlock(),
 	)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to connect to gRPC server: %v\n", err)
@@ -38,7 +33,7 @@ func main() {
 	healthClient := grpc_health_v1.NewHealthClient(conn)
 
 	// Check health
-	ctx, cancel = context.WithTimeout(context.Background(), 2*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 
 	resp, err := healthClient.Check(ctx, &grpc_health_v1.HealthCheckRequest{

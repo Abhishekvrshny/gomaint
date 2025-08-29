@@ -32,9 +32,8 @@ type Handler struct {
 	db                DB
 	logger            *log.Logger
 	originalSettings  *ConnectionSettings
-	settingsMux       sync.RWMutex
-	drainTimeout      time.Duration
-	activeConnections int32 // atomic counter for active connections
+	settingsMux  sync.RWMutex
+	drainTimeout time.Duration
 }
 
 // NewDatabaseHandler creates a new database handler
