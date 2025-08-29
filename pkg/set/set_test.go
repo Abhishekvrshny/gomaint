@@ -232,19 +232,19 @@ func TestSize(t *testing.T) {
 
 	t.Run("size after operations", func(t *testing.T) {
 		s := NewSet()
-		
+
 		// Add elements
 		s.Add(1, 2, 3)
 		if s.Size() != 3 {
 			t.Errorf("expected set size 3 after adding, got %d", s.Size())
 		}
-		
+
 		// Remove element
 		s.Remove(2)
 		if s.Size() != 2 {
 			t.Errorf("expected set size 2 after removing, got %d", s.Size())
 		}
-		
+
 		// Add duplicate
 		s.Add(1)
 		if s.Size() != 2 {
@@ -256,36 +256,36 @@ func TestSize(t *testing.T) {
 func TestSetOperations(t *testing.T) {
 	t.Run("complex operations sequence", func(t *testing.T) {
 		s := NewSet()
-		
+
 		// Start empty
 		if s.Size() != 0 {
 			t.Error("set should start empty")
 		}
-		
+
 		// Add elements
 		s.Add("a", "b", "c")
 		if s.Size() != 3 || !s.Contains("a") || !s.Contains("b") || !s.Contains("c") {
 			t.Error("set should contain a, b, c")
 		}
-		
+
 		// Add duplicates
 		s.Add("a", "b")
 		if s.Size() != 3 {
 			t.Error("set size should remain 3 after adding duplicates")
 		}
-		
+
 		// Remove element
 		s.Remove("b")
 		if s.Size() != 2 || s.Contains("b") {
 			t.Error("set should not contain b after removal")
 		}
-		
+
 		// Add new element
 		s.Add("d")
 		if s.Size() != 3 || !s.Contains("d") {
 			t.Error("set should contain d after addition")
 		}
-		
+
 		// Final state check
 		expected := []interface{}{"a", "c", "d"}
 		for _, item := range expected {

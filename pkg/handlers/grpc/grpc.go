@@ -60,7 +60,6 @@ func NewGRPCHandler(listener net.Listener, drainTimeout time.Duration) *Handler 
 	return h
 }
 
-
 // SkipMethods adds gRPC method names that should skip maintenance mode logic
 // Method names should be in the format "/service.ServiceName/MethodName"
 func (h *Handler) SkipMethods(methods ...interface{}) {
@@ -214,4 +213,3 @@ func (h *Handler) Stop(ctx context.Context) error {
 		return ctx.Err()
 	}
 }
-

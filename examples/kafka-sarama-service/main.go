@@ -180,7 +180,6 @@ func setupApp() (*App, error) {
 	return app, nil
 }
 
-
 func (app *App) sendInitialMessages(ctx context.Context) error {
 	log.Println("Sending initial test messages to topics...")
 

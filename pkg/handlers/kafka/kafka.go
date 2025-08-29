@@ -19,9 +19,9 @@ type Config struct {
 // Handler implements the Handler interface for Kafka message processing
 type Handler struct {
 	*handlers.BaseHandler
-	consumer      Consumer
-	config        *Config
-	logger        *log.Logger
+	consumer Consumer
+	config   *Config
+	logger   *log.Logger
 
 	// State management
 	inMaintenance int32 // atomic boolean
@@ -236,5 +236,3 @@ func (h *Handler) GetStats() map[string]interface{} {
 
 	return stats
 }
-
-

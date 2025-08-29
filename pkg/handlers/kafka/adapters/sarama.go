@@ -60,15 +60,15 @@ type SaramaAdapter struct {
 	consumerGroup sarama.ConsumerGroup
 	topics        []string
 	processor     kafka.MessageProcessor
-	
+
 	// State management
-	ctx           context.Context
-	cancel        context.CancelFunc
-	wg            sync.WaitGroup
-	stopChan      chan struct{}
-	isRunning     bool
-	mu            sync.RWMutex
-	
+	ctx       context.Context
+	cancel    context.CancelFunc
+	wg        sync.WaitGroup
+	stopChan  chan struct{}
+	isRunning bool
+	mu        sync.RWMutex
+
 	// Message tracking for graceful draining
 	activeMessages int64
 }
@@ -87,18 +87,18 @@ func NewSaramaAdapter(consumerGroup sarama.ConsumerGroup, topics []string, proce
 func (sa *SaramaAdapter) Start(ctx context.Context) error {
 	sa.mu.Lock()
 	defer sa.mu.Unlock()
-	
+
 	if sa.isRunning {
 		return nil // Already running
 	}
-	
+
 	sa.ctx, sa.cancel = context.WithCancel(ctx)
 	sa.isRunning = true
-	
+
 	// Start consumer group handler
 	sa.wg.Add(1)
 	go sa.consumeLoop()
-	
+
 	return nil
 }
 
@@ -106,23 +106,23 @@ func (sa *SaramaAdapter) Start(ctx context.Context) error {
 func (sa *SaramaAdapter) Stop() error {
 	sa.mu.Lock()
 	defer sa.mu.Unlock()
-	
+
 	if !sa.isRunning {
 		return nil // Already stopped
 	}
-	
+
 	// Cancel context and close stop channel
 	if sa.cancel != nil {
 		sa.cancel()
 	}
 	close(sa.stopChan)
 	sa.isRunning = false
-	
+
 	// Wait for consumer loop to finish
 	sa.mu.Unlock()
 	sa.wg.Wait()
 	sa.mu.Lock()
-	
+
 	return nil
 }
 
@@ -131,7 +131,7 @@ func (sa *SaramaAdapter) IsHealthy() bool {
 	if sa.consumerGroup == nil {
 		return false
 	}
-	
+
 	// Check if consumer group is closed
 	select {
 	case <-sa.consumerGroup.Errors():
@@ -149,11 +149,11 @@ func (sa *SaramaAdapter) ActiveMessages() int64 {
 // consumeLoop is the main consumer loop
 func (sa *SaramaAdapter) consumeLoop() {
 	defer sa.wg.Done()
-	
+
 	handler := &saramaConsumerHandler{
 		adapter: sa,
 	}
-	
+
 	for {
 		select {
 		case <-sa.ctx.Done():
@@ -198,14 +198,14 @@ func (h *saramaConsumerHandler) ConsumeClaim(session sarama.ConsumerGroupSession
 			if message == nil {
 				return nil
 			}
-			
+
 			// Track active message
 			atomic.AddInt64(&h.adapter.activeMessages, 1)
-			
+
 			// Process message in goroutine
 			h.adapter.wg.Add(1)
 			go h.processMessage(session, message)
-			
+
 		case <-session.Context().Done():
 			return nil
 		}
@@ -216,19 +216,19 @@ func (h *saramaConsumerHandler) ConsumeClaim(session sarama.ConsumerGroupSession
 func (h *saramaConsumerHandler) processMessage(session sarama.ConsumerGroupSession, msg *sarama.ConsumerMessage) {
 	defer h.adapter.wg.Done()
 	defer atomic.AddInt64(&h.adapter.activeMessages, -1)
-	
+
 	// Convert to generic message
 	genericMessage := &SaramaMessage{msg: msg}
-	
+
 	// Process the message using the generic processor
 	if err := h.adapter.processor.ProcessMessage(session.Context(), genericMessage); err != nil {
 		// Handle error (in a real implementation, you might want to retry or send to DLQ)
 		return
 	}
-	
+
 	// Mark message as processed
 	session.MarkMessage(msg, "")
-	
+
 	// Commit the offset (you might want to batch commits for better performance)
 	session.Commit()
 }
@@ -250,14 +250,13 @@ func NewSaramaConsumerGroupBuilder(brokers []string, consumerGroup string) *Sara
 	config.Consumer.Group.Rebalance.Strategy = sarama.NewBalanceStrategyRoundRobin()
 	config.Consumer.Return.Errors = true
 	config.Consumer.Offsets.AutoCommit.Enable = false // Manual commit for better control
-	
+
 	return &SaramaConsumerGroupBuilder{
 		brokers:       brokers,
 		consumerGroup: consumerGroup,
 		config:        config,
 	}
 }
-
 
 // WithOffsetInitial sets the initial offset strategy
 func (b *SaramaConsumerGroupBuilder) WithOffsetInitial(offset int64) *SaramaConsumerGroupBuilder {
@@ -277,12 +276,12 @@ func (b *SaramaConsumerGroupBuilder) Build() (sarama.ConsumerGroup, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Kafka client: %w", err)
 	}
-	
+
 	consumerGroup, err := sarama.NewConsumerGroupFromClient(b.consumerGroup, client)
 	if err != nil {
 		client.Close()
 		return nil, fmt.Errorf("failed to create consumer group: %w", err)
 	}
-	
+
 	return consumerGroup, nil
 }

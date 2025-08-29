@@ -62,18 +62,18 @@ type ConfluentAdapter struct {
 	consumer  *kafka.Consumer
 	topics    []string
 	processor kafkaHandler.MessageProcessor
-	
+
 	// State management
-	ctx           context.Context
-	cancel        context.CancelFunc
-	wg            sync.WaitGroup
-	stopChan      chan struct{}
-	isRunning     bool
-	mu            sync.RWMutex
-	
+	ctx       context.Context
+	cancel    context.CancelFunc
+	wg        sync.WaitGroup
+	stopChan  chan struct{}
+	isRunning bool
+	mu        sync.RWMutex
+
 	// Configuration
 	pollTimeout time.Duration
-	
+
 	// Message tracking for graceful draining
 	activeMessages int64
 }
@@ -99,23 +99,23 @@ func (ca *ConfluentAdapter) WithPollTimeout(timeout time.Duration) *ConfluentAda
 func (ca *ConfluentAdapter) Start(ctx context.Context) error {
 	ca.mu.Lock()
 	defer ca.mu.Unlock()
-	
+
 	if ca.isRunning {
 		return nil // Already running
 	}
-	
+
 	// Subscribe to topics
 	if err := ca.consumer.SubscribeTopics(ca.topics, nil); err != nil {
 		return err
 	}
-	
+
 	ca.ctx, ca.cancel = context.WithCancel(ctx)
 	ca.isRunning = true
-	
+
 	// Start consumer loop
 	ca.wg.Add(1)
 	go ca.consumeLoop()
-	
+
 	return nil
 }
 
@@ -123,23 +123,23 @@ func (ca *ConfluentAdapter) Start(ctx context.Context) error {
 func (ca *ConfluentAdapter) Stop() error {
 	ca.mu.Lock()
 	defer ca.mu.Unlock()
-	
+
 	if !ca.isRunning {
 		return nil // Already stopped
 	}
-	
+
 	// Cancel context and close stop channel
 	if ca.cancel != nil {
 		ca.cancel()
 	}
 	close(ca.stopChan)
 	ca.isRunning = false
-	
+
 	// Wait for consumer loop to finish
 	ca.mu.Unlock()
 	ca.wg.Wait()
 	ca.mu.Lock()
-	
+
 	return nil
 }
 
@@ -148,13 +148,13 @@ func (ca *ConfluentAdapter) IsHealthy() bool {
 	if ca.consumer == nil {
 		return false
 	}
-	
+
 	// Try to get metadata to check connectivity
 	metadata, err := ca.consumer.GetMetadata(nil, false, int(ca.pollTimeout.Milliseconds()))
 	if err != nil {
 		return false
 	}
-	
+
 	return len(metadata.Brokers) > 0
 }
 
@@ -166,7 +166,7 @@ func (ca *ConfluentAdapter) ActiveMessages() int64 {
 // consumeLoop is the main consumer loop
 func (ca *ConfluentAdapter) consumeLoop() {
 	defer ca.wg.Done()
-	
+
 	for {
 		select {
 		case <-ca.ctx.Done():
@@ -184,11 +184,11 @@ func (ca *ConfluentAdapter) consumeLoop() {
 				// Handle other errors (in a real implementation, you might want to retry with backoff)
 				continue
 			}
-			
+
 			if msg != nil {
 				// Track active message
 				atomic.AddInt64(&ca.activeMessages, 1)
-				
+
 				// Process message in goroutine
 				ca.wg.Add(1)
 				go ca.processMessage(msg)
@@ -201,16 +201,16 @@ func (ca *ConfluentAdapter) consumeLoop() {
 func (ca *ConfluentAdapter) processMessage(msg *kafka.Message) {
 	defer ca.wg.Done()
 	defer atomic.AddInt64(&ca.activeMessages, -1)
-	
+
 	// Convert to generic message
 	genericMessage := &ConfluentMessage{msg: msg}
-	
+
 	// Process the message using the generic processor
 	if err := ca.processor.ProcessMessage(ca.ctx, genericMessage); err != nil {
 		// Handle error (in a real implementation, you might want to retry or send to DLQ)
 		return
 	}
-	
+
 	// Commit the message offset
 	if _, err := ca.consumer.CommitMessage(msg); err != nil {
 		// Handle commit error (in a real implementation, you might want to retry)
@@ -226,14 +226,13 @@ type ConfluentConsumerBuilder struct {
 func NewConfluentConsumerBuilder(brokers, groupID string) *ConfluentConsumerBuilder {
 	return &ConfluentConsumerBuilder{
 		config: kafka.ConfigMap{
-			"bootstrap.servers": brokers,
-			"group.id":          groupID,
-			"auto.offset.reset": "latest",
+			"bootstrap.servers":  brokers,
+			"group.id":           groupID,
+			"auto.offset.reset":  "latest",
 			"enable.auto.commit": false, // Manual commit for better control
 		},
 	}
 }
-
 
 // WithAutoOffsetReset sets the auto.offset.reset strategy
 func (b *ConfluentConsumerBuilder) WithAutoOffsetReset(strategy string) *ConfluentConsumerBuilder {
@@ -247,13 +246,12 @@ func (b *ConfluentConsumerBuilder) WithSessionTimeout(timeout string) *Confluent
 	return b
 }
 
-
 // Build creates the kafka.Consumer
 func (b *ConfluentConsumerBuilder) Build() (*kafka.Consumer, error) {
 	consumer, err := kafka.NewConsumer(&b.config)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	return consumer, nil
 }

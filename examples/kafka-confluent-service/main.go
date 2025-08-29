@@ -114,7 +114,7 @@ func setupApp() (*App, error) {
 	// Create Confluent consumer using the builder
 	confluentConsumer, err := adapters.NewConfluentConsumerBuilder(brokersStr, consumerGroupName).
 		WithAutoOffsetReset("earliest"). // Start from oldest unread messages
-		WithSessionTimeout("30000"). // 30 seconds
+		WithSessionTimeout("30000").     // 30 seconds
 		Build()
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Confluent consumer: %w", err)
@@ -180,7 +180,6 @@ func setupApp() (*App, error) {
 
 	return app, nil
 }
-
 
 func (app *App) sendInitialMessages(ctx context.Context) error {
 	log.Println("Sending initial test messages to topics...")
@@ -414,7 +413,7 @@ func (app *App) sendMessageHandler(w http.ResponseWriter, r *http.Request) {
 
 	deliveryChan := make(chan kafka.Event, 1)
 	defer close(deliveryChan)
-	
+
 	err := app.kafkaProducer.Produce(kafkaMsg, deliveryChan)
 	if err != nil {
 		log.Printf("Failed to produce message to topic %s: %v", request.Topic, err)

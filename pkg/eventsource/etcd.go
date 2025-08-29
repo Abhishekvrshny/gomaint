@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/abhishekvarshney/gomaint/pkg/logger"
 	clientv3 "go.etcd.io/etcd/client/v3"
 )
 
@@ -57,6 +58,7 @@ type EtcdEventSource struct {
 	cancel  context.CancelFunc
 	healthy bool
 	mutex   sync.RWMutex
+	logger  logger.Logger
 }
 
 // NewEtcdEventSource creates a new etcd event source
@@ -80,6 +82,7 @@ func NewEtcdEventSource(config *EtcdConfig) (*EtcdEventSource, error) {
 	return &EtcdEventSource{
 		config:  config,
 		healthy: false,
+		logger:  logger.NewDefaultLogger(),
 	}, nil
 }
 
@@ -130,6 +133,8 @@ func (e *EtcdEventSource) Start(ctx context.Context, handler EventHandler) error
 	e.handler = handler
 	e.ctx, e.cancel = context.WithCancel(ctx)
 
+	e.logger.Infof("etcd event source connected to %v", e.config.Endpoints)
+
 	// Check initial state
 	if err := e.checkInitialState(); err != nil {
 		e.cleanup()
@@ -140,6 +145,7 @@ func (e *EtcdEventSource) Start(ctx context.Context, handler EventHandler) error
 	go e.watchForChanges()
 
 	e.healthy = true
+	e.logger.Infof("etcd event source started, watching key: %s", e.config.KeyPath)
 	return nil
 }
 
@@ -184,6 +190,13 @@ func (e *EtcdEventSource) IsHealthy() bool {
 	e.mutex.RLock()
 	defer e.mutex.RUnlock()
 	return e.healthy
+}
+
+// SetLogger sets a custom logger for the event source
+func (e *EtcdEventSource) SetLogger(l logger.Logger) {
+	if l != nil {
+		e.logger = l
+	}
 }
 
 // SetMaintenance sets the maintenance state in etcd
@@ -287,6 +300,7 @@ func (e *EtcdEventSource) watchForChanges() {
 				e.healthy = false
 				e.mutex.Unlock()
 
+				e.logger.Errorf("etcd watch error: %v, retrying in 1s", watchResp.Err())
 				// Simple backoff - in production might want exponential backoff
 				time.Sleep(time.Second)
 				continue
@@ -298,8 +312,7 @@ func (e *EtcdEventSource) watchForChanges() {
 
 			for _, etcdEvent := range watchResp.Events {
 				if err := e.processEtcdEvent(etcdEvent); err != nil {
-					// Log error but continue processing
-					// In production, you might want to implement retry logic
+					e.logger.Errorf("failed to process etcd event: %v", err)
 					continue
 				}
 			}

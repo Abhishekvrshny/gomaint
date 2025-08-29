@@ -8,6 +8,7 @@ import (
 
 	"github.com/abhishekvarshney/gomaint/pkg/eventsource"
 	"github.com/abhishekvarshney/gomaint/pkg/handlers"
+	"github.com/abhishekvarshney/gomaint/pkg/logger"
 )
 
 // Manager coordinates maintenance mode across multiple handlers using a single event source
@@ -22,6 +23,7 @@ type Manager struct {
 	cancel         context.CancelFunc
 	started        bool
 	startedMux     sync.RWMutex
+	logger         logger.Logger
 }
 
 // NewManager creates a new maintenance manager with the specified event source
@@ -34,6 +36,7 @@ func NewManager(eventSource eventsource.EventSource, drainTimeout time.Duration)
 		eventSource:  eventSource,
 		handlers:     make(map[string]handlers.Handler),
 		drainTimeout: drainTimeout,
+		logger:       logger.NewDefaultLogger(),
 	}
 }
 
@@ -52,6 +55,7 @@ func (m *Manager) RegisterHandler(handler handlers.Handler) error {
 	}
 
 	m.handlers[name] = handler
+	m.logger.Infof("registered handler '%s'", name)
 	return nil
 }
 
@@ -85,6 +89,7 @@ func (m *Manager) Start(ctx context.Context) error {
 	}
 
 	m.started = true
+	m.logger.Info("maintenance manager started")
 	return nil
 }
 
@@ -122,6 +127,7 @@ func (m *Manager) Stop() error {
 	}
 
 	m.started = false
+	m.logger.Info("maintenance manager stopped")
 	return lastErr
 }
 
@@ -130,6 +136,13 @@ func (m *Manager) IsInMaintenance() bool {
 	m.maintenanceMux.RLock()
 	defer m.maintenanceMux.RUnlock()
 	return m.inMaintenance
+}
+
+// SetLogger sets a custom logger for the manager
+func (m *Manager) SetLogger(l logger.Logger) {
+	if l != nil {
+		m.logger = l
+	}
 }
 
 // GetHandlerHealth returns the health status of all handlers
@@ -156,6 +169,12 @@ func (m *Manager) handleMaintenanceEvent(event eventsource.MaintenanceEvent) err
 	// No state change, nothing to do
 	if currentState == enabled {
 		return nil
+	}
+
+	if enabled {
+		m.logger.Info("maintenance mode enabled")
+	} else {
+		m.logger.Info("maintenance mode disabled")
 	}
 
 	ctx, cancel := context.WithTimeout(m.ctx, m.drainTimeout)
