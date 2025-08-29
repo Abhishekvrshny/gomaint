@@ -29,11 +29,11 @@ type ConnectionSettings struct {
 // Works with any ORM that provides access to the underlying sql.DB
 type Handler struct {
 	*handlers.BaseHandler
-	db                DB
-	logger            *log.Logger
-	originalSettings  *ConnectionSettings
-	settingsMux  sync.RWMutex
-	drainTimeout time.Duration
+	db               DB
+	logger           *log.Logger
+	originalSettings *ConnectionSettings
+	settingsMux      sync.RWMutex
+	drainTimeout     time.Duration
 }
 
 // NewDatabaseHandler creates a new database handler
